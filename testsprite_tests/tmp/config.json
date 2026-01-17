@@ -1,0 +1,18 @@
+{
+  "status": "commited",
+  "type": "frontend",
+  "scope": "codebase",
+  "localEndpoint": "http://localhost:3000",
+  "loginUser": "alkarime0@gmail.com",
+  "loginPassword": "asasas",
+  "executionArgs": {
+    "projectName": "alzhra",
+    "projectPath": "c:\\Users\\User\\OneDrive\\Desktop\\الزهراء2026\\alzhra",
+    "testIds": [],
+    "additionalInstruction": "",
+    "envs": {
+      "API_KEY": "sk-user-UzXnVx352FBCnvwUSs-8i3YTPZKC_JPkXeqSeqPvxi4Sy4r--I9x41rNPe14ZKgZUlQMGdeLepi3LzMPEZXTlZru3oJWxOwEtnDS3fW8IoME6QT8OgXEBzIvaiJIQo0WCL8"
+    }
+  },
+  "proxy": "http://8580d71b-ceb9-440d-80f7-6ebd8c0fc442:rlrnhV90DlKp3EUIfyIgEXA25XOWhSJp@tun.testsprite.com:8080"
+}

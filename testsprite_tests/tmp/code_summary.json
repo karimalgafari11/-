@@ -1,0 +1,73 @@
+{
+    "tech_stack": [
+        "TypeScript",
+        "React",
+        "Vite",
+        "Supabase",
+        "LocalStorage"
+    ],
+    "features": [
+        {
+            "name": "Accounting Core",
+            "description": "Double-entry ledger system, chart of accounts, and financial statement generation based on Clean Architecture.",
+            "files": [
+                "src/domain/accounting",
+                "services/accountingService.ts",
+                "services/autoJournalService.ts",
+                "pages/Accounting.tsx",
+                "pages/Vouchers.tsx"
+            ]
+        },
+        {
+            "name": "Sales Management",
+            "description": "Invoicing, point of sale (POS), customer management, and profit margin analysis.",
+            "files": [
+                "src/domain/sales",
+                "services/salesService.ts",
+                "services/customerService.ts",
+                "pages/Sales.tsx",
+                "pages/Customers.tsx",
+                "pages/Invoices.tsx",
+                "pages/POS.tsx"
+            ]
+        },
+        {
+            "name": "Purchase Management",
+            "description": "Supplier management, purchase orders, and landed cost calculations.",
+            "files": [
+                "src/domain/purchases",
+                "services/suppliersService.ts",
+                "pages/Purchases.tsx",
+                "pages/Suppliers.tsx"
+            ]
+        },
+        {
+            "name": "Inventory Management",
+            "description": "Stock tracking, weighted average costing, and COGS calculations.",
+            "files": [
+                "src/domain/inventory",
+                "services/productService.ts",
+                "pages/Inventory.tsx"
+            ]
+        },
+        {
+            "name": "Finance & Analytics",
+            "description": "Financial summaries, simplified tax handling, and dashboard analytics.",
+            "files": [
+                "src/domain/finance",
+                "services/financeService.ts",
+                "pages/Dashboard.tsx",
+                "pages/Reports.tsx"
+            ]
+        },
+        {
+            "name": "Auth & Security",
+            "description": "User authentication and role-based permissions.",
+            "files": [
+                "pages/LoginPage.tsx",
+                "services/authService.ts",
+                "services/permissionsService.ts"
+            ]
+        }
+    ]
+}

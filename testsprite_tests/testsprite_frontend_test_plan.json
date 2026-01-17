@@ -1,0 +1,388 @@
+[
+  {
+    "id": "TC001",
+    "title": "Successful login with valid credentials and role-based access",
+    "description": "Verify that a user can log into the system using valid username and password and that the appropriate role-based permissions are applied.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to the Login page"
+      },
+      {
+        "type": "action",
+        "description": "Enter valid username 'test@alzhra.com' and password 'test123456'"
+      },
+      {
+        "type": "action",
+        "description": "Click on the login button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify user is authenticated and redirected to the dashboard"
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm that the user interface elements correspond to the user's role permissions"
+      }
+    ]
+  },
+  {
+    "id": "TC002",
+    "title": "Login failure with invalid credentials",
+    "description": "Verify the system behavior when an invalid username or password is provided.",
+    "category": "error handling",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to the Login page"
+      },
+      {
+        "type": "action",
+        "description": "Enter invalid username or password"
+      },
+      {
+        "type": "action",
+        "description": "Click on the login button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify login is denied and appropriate error message is displayed"
+      }
+    ]
+  },
+  {
+    "id": "TC003",
+    "title": "Dashboard KPI loading and display",
+    "description": "Verify that the dashboard page loads financial overview KPIs correctly for the logged-in user.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Login with valid user credentials ('test@alzhra.com' / 'test123456')"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to the Dashboard page"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify all key financial KPIs are displayed correctly"
+      },
+      {
+        "type": "assertion",
+        "description": "Check KPIs reflect accurate and up-to-date financial data"
+      }
+    ]
+  },
+  {
+    "id": "TC004",
+    "title": "Entry of valid sales transaction and invoice generation",
+    "description": "Verify that a sales transaction can be entered successfully with correct invoicing and tax handling.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Login as user 'test@alzhra.com' with password 'test123456' (has sales permissions)"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to the Sales entry page"
+      },
+      {
+        "type": "action",
+        "description": "Create a new sales invoice with valid customer, items, quantity, tax rates, and prices"
+      },
+      {
+        "type": "action",
+        "description": "Submit the invoice for posting"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the invoice is saved and posted correctly"
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm accurate tax calculation and correct customer balance update"
+      },
+      {
+        "type": "assertion",
+        "description": "Check that corresponding double-entry ledger journals are created and balanced"
+      }
+    ]
+  },
+  {
+    "id": "TC005",
+    "title": "Validation of double-entry ledger balancing on journal posting",
+    "description": "Verify all journal entries follow the double-entry accounting principle where total debits equal total credits and are immutable after posting.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Create and post a new financial journal entry via the relevant service"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the total debit amount equals the total credit amount exactly"
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm the journal entries are immutable and cannot be modified or deleted"
+      },
+      {
+        "type": "assertion",
+        "description": "Check audit trail records every journal creation with full traceability"
+      }
+    ]
+  },
+  {
+    "id": "TC006",
+    "title": "Trial Balance computation with correct aggregation from chart of accounts",
+    "description": "Verify the trial balance report accurately aggregates account balances and validates debit and credit totals are equal.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Post a series of various journal entries affecting multiple ledger accounts"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to the Trial Balance report"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify aggregated debits and credits in the trial balance match underlying ledger balances"
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm the trial balance report shows zero difference between total debits and credits"
+      }
+    ]
+  },
+  {
+    "id": "TC007",
+    "title": "Purchase order creation and landed cost calculation validation",
+    "description": "Verify purchase orders can be created with supplier details, and landed costs are calculated correctly.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Login as user 'test@alzhra.com' with password 'test123456' (has purchase permissions)"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to the Purchase Orders page"
+      },
+      {
+        "type": "action",
+        "description": "Create a new purchase order with valid supplier, order items, expected costs, and taxes"
+      },
+      {
+        "type": "action",
+        "description": "Apply landed cost calculations including freight, customs, and taxes"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify purchase order details and total landed cost are computed accurately"
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm related ledger postings accurately reflect purchase cost and landed costs"
+      }
+    ]
+  },
+  {
+    "id": "TC008",
+    "title": "Inventory stock update and weighted average costing after goods receipt",
+    "description": "Verify inventory quantities and weighted average cost calculations update correctly following stock receipts.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Post a purchase receipt transaction for inventory items"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify inventory stock level increases by the correct quantity"
+      },
+      {
+        "type": "assertion",
+        "description": "Check weighted average cost of inventory updates accurately based on new goods cost and existing stock"
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm inventory valuation reconciles with accounting records without negative stock unless allowed"
+      }
+    ]
+  },
+  {
+    "id": "TC009",
+    "title": "Inventory stock reduction and COGS calculation upon sales",
+    "description": "Verify correct inventory stock reduction and cost of goods sold calculation after posting a sales transaction.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Create and post a sales invoice which includes inventory items"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify inventory stock levels decrease correctly according to sold quantities"
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm cost of goods sold (COGS) amounts are calculated using weighted average costing"
+      },
+      {
+        "type": "assertion",
+        "description": "Reconcile inventory valuation with accounting records"
+      }
+    ]
+  },
+  {
+    "id": "TC010",
+    "title": "Multi-currency transaction handling with rounding rules",
+    "description": "Verify multi-currency transactions, including tax calculations, are processed consistently with proper rounding rules.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Create a sales invoice or purchase order in a foreign currency"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify currency conversion is applied based on current exchange rates"
+      },
+      {
+        "type": "assertion",
+        "description": "Check tax amounts are calculated correctly with explicit rounding rules"
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm posting of ledger entries correctly reflects converted amounts"
+      }
+    ]
+  },
+  {
+    "id": "TC011",
+    "title": "Permission enforcement on accessing restricted financial reports",
+    "description": "Verify that only authorized users with proper roles can access and generate financial reports and sensitive data.",
+    "category": "security",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Login with a user role that lacks permission to view financial reports"
+      },
+      {
+        "type": "action",
+        "description": "Attempt to navigate to the Reports or Finance dashboard pages"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify access is denied and user receives an appropriate authorization error"
+      },
+      {
+        "type": "action",
+        "description": "Login with a user role that has permission"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify authorized user can access and generate reports without issues"
+      }
+    ]
+  },
+  {
+    "id": "TC012",
+    "title": "Audit trail validation for all financial postings",
+    "description": "Verify that every financial transaction is logged in the audit trail with full traceability and immutability.",
+    "category": "security",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Create various financial transactions including journal entries, sales invoices, and purchase orders"
+      },
+      {
+        "type": "action",
+        "description": "Retrieve the audit trail logs for each posted transaction"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify audit logs contain timestamp, user details, transaction details, and immutable records"
+      },
+      {
+        "type": "assertion",
+        "description": "Ensure no manipulation or deletion of audit records is possible"
+      }
+    ]
+  },
+  {
+    "id": "TC013",
+    "title": "Performance test with large dataset financial calculations",
+    "description": "Verify system maintains high performance and deterministic calculations processing large volumes of accounting data including postings and reports.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Generate and post several thousands of financial transactions and journal entries"
+      },
+      {
+        "type": "action",
+        "description": "Generate financial reports and trial balance from large data"
+      },
+      {
+        "type": "assertion",
+        "description": "Measure response time and verify system completes processing within acceptable thresholds"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify calculations remain accurate and consistent despite large data volume"
+      }
+    ]
+  },
+  {
+    "id": "TC014",
+    "title": "User configuration settings update and enforcement",
+    "description": "Verify authorized users can update configuration settings and that changes apply correctly within the system.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Login as user with configuration permissions"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to the configuration/settings page"
+      },
+      {
+        "type": "action",
+        "description": "Modify settings such as tax rules, currency preferences, or account settings"
+      },
+      {
+        "type": "action",
+        "description": "Save the updated configuration"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify changes are saved and applied across relevant modules"
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm unauthorized users cannot access or alter these settings"
+      }
+    ]
+  }
+]
