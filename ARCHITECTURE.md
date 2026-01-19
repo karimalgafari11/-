@@ -36,7 +36,8 @@ This accounting application follows a **Clean Architecture** pattern with clear 
                           │
 ┌─────────────────────────▼───────────────────────────────────┐
 │                   Storage Layer                             │
-│              LocalStorage / Supabase                        │
+│                  Supabase (Cloud Only)                      │
+│         localStorage: Sessions & Settings Only              │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -174,6 +175,36 @@ Service.createSaleEntry()
    │
    └─→ AccountingService.createJournalEntry()  // Save to storage
 ```
+
+---
+
+## Storage Strategy
+
+### Cloud-Only Architecture
+
+The application uses **direct cloud storage** with Supabase. All data operations are performed directly on the cloud database.
+
+#### What's Stored Where
+
+| Storage Type | Purpose | Data |
+|--------------|---------|------|
+| **Supabase** | Primary data storage | Sales, Products, Customers, Inventory, Accounting |
+| **localStorage** | Session & Settings | User sessions, UI preferences, error logs |
+
+#### Key Characteristics
+
+- ✅ **Real-time sync**: All changes are immediately saved to Supabase
+- ✅ **No offline queue**: Requires internet connection to operate
+- ✅ **Simple architecture**: No complex sync logic
+- ⚠️ **Internet required**: Application won't work offline
+
+#### Data Flow
+
+```
+User Action → Service → Supabase → Success/Error
+```
+
+No local queue, no pending operations, no sync conflicts.
 
 ---
 

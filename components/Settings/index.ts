@@ -9,6 +9,9 @@ export { default as SettingsInput } from './SettingsInput';
 export { default as SettingsSelect } from './SettingsSelect';
 export { default as ColorPicker } from './ColorPicker';
 
+export { default as BranchesManager } from './BranchesManager';
+export { default as FiscalPeriodsManager } from './FiscalPeriodsManager';
+
 export { default as CompanySettings } from './CompanySettings';
 export { default as CurrencyManager } from './CurrencyManager';
 export { default as ThemeCustomizer } from './ThemeCustomizer';

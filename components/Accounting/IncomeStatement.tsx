@@ -30,7 +30,11 @@ const IncomeStatement: React.FC = () => {
         try {
             // هنا سنقوم بحساب الأرصدة للحسابات (إيرادات ومصروفات)
             // بما أن AccountingService لديه getTrialBalance، يمكننا استخدامه وتصفيته
-            const trialBalance = await AccountingService.getTrialBalance(company.id);
+            const result = await AccountingService.getTrialBalance(company.id);
+            const trialBalance = result.accounts.map(item => ({
+                ...item,
+                balance: item.debit - item.credit
+            }));
 
             // تصفية الإيرادات (4xxx)
             const revenues = trialBalance.filter(item => item.account.account_type === 'revenue' && item.balance !== 0);

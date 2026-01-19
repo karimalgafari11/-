@@ -39,13 +39,15 @@ const ClosingAccounts: React.FC = () => {
         }
 
         setIsClosing(true);
-        const success = await AutoJournalService.closeFiscalYear(company.id, user.id);
+        // TODO: تنفيذ closeFiscalYear في AutoJournalService
+        // const success = await AutoJournalService.closeFiscalYear(company.id, user.id);
+        const success = false; // Placeholder until implemented
         setIsClosing(false);
 
         if (success) {
             showNotification('تم إغلاق السنة المالية بنجاح', 'success');
         } else {
-            showNotification('حدث خطأ أثناء إغلاق السنة المالية', 'error');
+            showNotification('ميزة إغلاق السنة المالية غير متاحة حالياً', 'info');
         }
     };
 

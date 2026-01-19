@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { Wifi, WifiOff, RefreshCw, Cloud, CloudOff } from 'lucide-react';
+import { Wifi, WifiOff, Cloud, CloudOff } from 'lucide-react';
 import { useSync } from '../../context/SyncContext';
 
 interface OnlineStatusIndicatorProps {
@@ -16,7 +16,7 @@ const OnlineStatusIndicator: React.FC<OnlineStatusIndicatorProps> = ({
     showDetails = false,
     compact = false
 }) => {
-    const { isOnline, stats, syncNow } = useSync();
+    const { isOnline, stats } = useSync();
 
     if (compact) {
         return (
@@ -28,11 +28,6 @@ const OnlineStatusIndicator: React.FC<OnlineStatusIndicatorProps> = ({
                 title={isOnline ? 'متصل بالإنترنت' : 'غير متصل'}
             >
                 {isOnline ? <Wifi size={12} /> : <WifiOff size={12} />}
-                {stats.pendingCount > 0 && (
-                    <span className="bg-yellow-500 text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center">
-                        {stats.pendingCount}
-                    </span>
-                )}
             </div>
         );
     }
@@ -63,31 +58,21 @@ const OnlineStatusIndicator: React.FC<OnlineStatusIndicatorProps> = ({
                     {isOnline ? 'متصل بالإنترنت' : 'غير متصل'}
                 </p>
 
-                {showDetails && (
+                {showDetails && stats.lastCheckAt && (
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                        {stats.pendingCount > 0
-                            ? `${stats.pendingCount} عملية في الانتظار`
-                            : 'جميع البيانات مزامنة'
-                        }
+                        آخر فحص: {new Date(stats.lastCheckAt).toLocaleTimeString('ar-SA')}
+                    </p>
+                )}
+
+                {!isOnline && (
+                    <p className="text-xs text-orange-600 dark:text-orange-400 mt-0.5">
+                        يتطلب اتصال بالإنترنت للعمل
                     </p>
                 )}
             </div>
-
-            {/* زر المزامنة */}
-            {isOnline && stats.pendingCount > 0 && (
-                <button
-                    onClick={() => syncNow()}
-                    className="p-2 rounded-lg bg-green-100 hover:bg-green-200 dark:bg-green-900/40 dark:hover:bg-green-900/60 transition-colors"
-                    title="مزامنة الآن"
-                >
-                    <RefreshCw
-                        size={16}
-                        className={`text-green-600 dark:text-green-400 ${stats.syncInProgress ? 'animate-spin' : ''}`}
-                    />
-                </button>
-            )}
         </div>
     );
 };
 
 export default OnlineStatusIndicator;
+

@@ -27,7 +27,11 @@ const BalanceSheet: React.FC = () => {
         setLoading(true);
 
         try {
-            const trialBalance = await AccountingService.getTrialBalance(company.id);
+            const result = await AccountingService.getTrialBalance(company.id);
+            const trialBalance = result.accounts.map(item => ({
+                ...item,
+                balance: item.debit - item.credit
+            }));
 
             // الأصول
             const assets = trialBalance.filter(item => item.account.account_type === 'asset' && item.balance !== 0);

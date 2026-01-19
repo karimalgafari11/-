@@ -4,6 +4,7 @@ import { User, Language } from '../../types';
 import { UserRole, ROLE_NAMES } from '../../types/organization';
 import { SafeStorage } from '../../utils/storage';
 import { authService } from '../../services/authService';
+import { isSupabaseConfigured } from '../../lib/supabaseClient';
 
 // Simple translation placeholder - ideally move to i18n module
 import { translations } from '../../i18n/translations';
@@ -57,11 +58,30 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     useEffect(() => {
         // التحقق من الجلسة الحالية عند بدء التطبيق
         const checkCurrentUser = async () => {
+            console.log('🔍 Checking current user...');
+
+            // إذا لم يتم إعداد Supabase بشكل صحيح، انتقل مباشرة لصفحة الدخول
+            if (!isSupabaseConfigured) {
+                console.warn('⚠️ Supabase not properly configured, skipping auth check');
+                setIsLoading(false);
+                return;
+            }
+
             try {
-                const currentUser = await authService.getCurrentUser();
+                // إضافة timeout لتجنب التعليق اللانهائي - تقليل الوقت إلى 5 ثواني
+                const timeoutPromise = new Promise<null>((_, reject) =>
+                    setTimeout(() => reject(new Error('Timeout')), 5000)
+                );
+
+                const userPromise = authService.getCurrentUser();
+
+                const currentUser = await Promise.race([userPromise, timeoutPromise]);
+
                 if (currentUser) {
+                    console.log('✅ User found:', currentUser.email);
                     setUserState({
                         id: currentUser.id,
+                        companyId: currentUser.companyId,
                         name: currentUser.name,
                         email: currentUser.email || '',
                         role: currentUser.role,
@@ -69,10 +89,14 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     });
                     setUserRoleState(currentUser.role);
                     setIsAuthenticated(true);
+                } else {
+                    console.log('ℹ️ No user logged in');
                 }
-            } catch (error) {
-                console.error('Error checking current user:', error);
+            } catch (error: any) {
+                console.warn('⚠️ Error checking current user:', error.message);
+                // في حالة الخطأ أو timeout، نكمل بدون مستخدم
             } finally {
+                console.log('✅ Loading complete, showing app');
                 setIsLoading(false);
             }
         };
@@ -84,6 +108,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
             if (authUser) {
                 setUserState({
                     id: authUser.id,
+                    companyId: authUser.companyId,
                     name: authUser.name,
                     email: authUser.email || '',
                     role: authUser.role,

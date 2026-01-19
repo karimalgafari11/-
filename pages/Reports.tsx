@@ -12,6 +12,7 @@ import InventoryReport from '../components/Reports/InventoryReport';
 import ReceivablesReport from '../components/Reports/ReceivablesReport';
 import PayablesReport from '../components/Reports/PayablesReport';
 import VATReport from '../components/Reports/VATReport';
+import TrialBalanceReport from '../components/Reports/TrialBalanceReport';
 import CustomerStatementReport from '../components/Reports/CustomerStatementReport';
 import DebtReport from '../components/Reports/DebtReport';
 import FxGainLossReport from '../components/Reports/FxGainLossReport';
@@ -26,6 +27,7 @@ const Reports: React.FC = () => {
   const [activeTab, setActiveTab] = useState('debts');
 
   const reportTabs = [
+    { id: 'trial', label: 'ميزان المراجعة', icon: Scale },
     { id: 'debts', label: 'تقرير الديون', icon: CreditCard },
     { id: 'statement', label: 'كشف حساب عميل', icon: User },
     { id: 'fx', label: 'فروق العملات', icon: Coins },
@@ -42,6 +44,8 @@ const Reports: React.FC = () => {
 
   const renderReport = () => {
     switch (activeTab) {
+      case 'trial':
+        return <TrialBalanceReport />;
       case 'debts':
         return <DebtReport />;
       case 'statement':

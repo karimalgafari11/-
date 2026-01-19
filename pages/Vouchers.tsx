@@ -175,28 +175,32 @@ const Vouchers: React.FC = () => {
                         </div>
                     </div>
 
-                    <div className="flex gap-3">
+                    <div className="flex flex-wrap gap-2 sm:gap-3">
                         <PrivacyToggle showLabel={false} />
                         <Button
                             variant="success"
-                            icon={<ArrowDownCircle size={18} />}
+                            size="sm"
+                            icon={<ArrowDownCircle size={16} />}
                             onClick={() => setShowReceiptModal(true)}
                         >
-                            سند قبض جديد
+                            <span className="hidden sm:inline">سند قبض جديد</span>
+                            <span className="sm:hidden">قبض</span>
                         </Button>
                         <Button
                             variant="danger"
-                            icon={<ArrowUpCircle size={18} />}
+                            size="sm"
+                            icon={<ArrowUpCircle size={16} />}
                             onClick={() => setShowPaymentModal(true)}
                         >
-                            سند دفع جديد
+                            <span className="hidden sm:inline">سند دفع جديد</span>
+                            <span className="sm:hidden">دفع</span>
                         </Button>
                     </div>
                 </div>
             </div>
 
             {/* إحصائيات سريعة */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
                 <div className={`p-5 rounded-2xl border ${theme === 'light' ? 'bg-white border-emerald-200' : 'bg-emerald-900/20 border-emerald-800/30'}`}>
                     <div className="flex items-center gap-3 mb-2">
                         <ArrowDownCircle className="text-emerald-500" size={20} />

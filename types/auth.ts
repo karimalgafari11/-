@@ -8,6 +8,7 @@ import { Company, CompanyUser, UserRole } from './organization';
 // المستخدم المصادق (مبسط)
 export interface AuthUser {
     id: string;
+    companyId: string;
     email?: string;
     name: string;
     avatar?: string;

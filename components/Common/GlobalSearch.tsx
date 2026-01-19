@@ -16,12 +16,25 @@ interface SearchResult {
     icon: React.ElementType;
 }
 
-const GlobalSearch: React.FC = () => {
+interface GlobalSearchProps {
+    isMobile?: boolean;
+    onClose?: () => void;
+}
+
+const GlobalSearch: React.FC<GlobalSearchProps> = ({ isMobile = false, onClose }) => {
     const navigate = useNavigate();
     const [query, setQuery] = useState('');
     const [results, setResults] = useState<SearchResult[]>([]);
     const [isOpen, setIsOpen] = useState(false);
     const searchRef = useRef<HTMLDivElement>(null);
+    const inputRef = useRef<HTMLInputElement>(null);
+
+    // Focus input when mobile search opens
+    React.useEffect(() => {
+        if (isMobile && inputRef.current) {
+            inputRef.current.focus();
+        }
+    }, [isMobile]);
 
     // Contexts
     const { inventory: items } = useInventory();
@@ -158,6 +171,7 @@ const GlobalSearch: React.FC = () => {
         navigate(result.link);
         setIsOpen(false);
         setQuery('');
+        if (onClose) onClose();
     };
 
     const getGroupLabel = (type: string) => {
@@ -172,6 +186,85 @@ const GlobalSearch: React.FC = () => {
         }
     };
 
+    // Mobile full-screen search
+    if (isMobile) {
+        return (
+            <div className="flex-1">
+                <div className="relative">
+                    <input
+                        ref={inputRef}
+                        type="text"
+                        value={query}
+                        onChange={(e) => {
+                            setQuery(e.target.value);
+                            setIsOpen(true);
+                        }}
+                        onFocus={() => setIsOpen(true)}
+                        placeholder="ابحث عن العميل، الصنف، الفاتورة..."
+                        className="w-full pl-4 pr-10 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm transition-all text-slate-700 dark:text-slate-200"
+                    />
+                    <div className="absolute right-3 top-3 text-slate-400">
+                        <Search size={18} />
+                    </div>
+                    {query && (
+                        <button
+                            onClick={() => { setQuery(''); setResults([]); }}
+                            className="absolute left-3 top-3 text-slate-400 hover:text-red-500"
+                        >
+                            <X size={16} />
+                        </button>
+                    )}
+                </div>
+
+                {query.length >= 2 && (
+                    <div className="mt-3 bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-100 dark:border-slate-800 max-h-[60vh] overflow-y-auto">
+                        {results.length > 0 ? (
+                            <div className="py-2">
+                                {results.reduce((acc: React.ReactNode[], result, index, array) => {
+                                    const prevType = index > 0 ? array[index - 1].type : null;
+                                    if (result.type !== prevType) {
+                                        acc.push(
+                                            <div key={`header-${result.type}`} className="px-4 py-2 bg-slate-50 dark:bg-slate-800/50 text-[10px] font-bold text-slate-500 uppercase tracking-wider sticky top-0">
+                                                {getGroupLabel(result.type)}
+                                            </div>
+                                        );
+                                    }
+                                    acc.push(
+                                        <button
+                                            key={result.id}
+                                            onClick={() => handleSelect(result)}
+                                            className="w-full px-4 py-3 flex items-start gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors text-right border-b border-slate-50 dark:border-slate-800/50 last:border-0"
+                                        >
+                                            <div className={`p-2 rounded-lg ${result.type === 'item' ? 'bg-blue-50 text-blue-600' :
+                                                result.type === 'customer' ? 'bg-emerald-50 text-emerald-600' :
+                                                    result.type === 'supplier' ? 'bg-purple-50 text-purple-600' :
+                                                        result.type === 'company' ? 'bg-slate-100 text-slate-600' :
+                                                            'bg-amber-50 text-amber-600'
+                                                }`}>
+                                                <result.icon size={18} />
+                                            </div>
+                                            <div className="flex-1">
+                                                <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200">{result.title}</h4>
+                                                <p className="text-xs text-slate-500 mt-0.5">{result.subtitle}</p>
+                                            </div>
+                                            <ChevronRight size={14} className="text-slate-300 mt-1" />
+                                        </button>
+                                    );
+                                    return acc;
+                                }, [])}
+                            </div>
+                        ) : (
+                            <div className="p-8 text-center text-slate-500">
+                                <p className="text-sm">لا توجد نتائج مطابقة لـ "{query}"</p>
+                            </div>
+                        )}
+                    </div>
+                )}
+            </div>
+        );
+    }
+
+    // Desktop search
     return (
         <div ref={searchRef} className="relative w-full max-w-md hidden md:block">
             <div className="relative">

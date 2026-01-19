@@ -10,7 +10,7 @@ import {
   Building2, Coins, Users, Receipt, ShoppingCart,
   Palette, Printer, Globe, Database, Webhook,
   MessageCircle, Brain, Settings2, Shield, ChevronLeft,
-  ChevronRight, Menu, X
+  ChevronRight, Menu, X, Calendar, MapPin
 } from 'lucide-react';
 
 // Import Settings Components
@@ -22,7 +22,9 @@ import {
   WebhooksManager,
   RolesManager,
   BackupSettings,
-  OperationsSettings
+  OperationsSettings,
+  BranchesManager,
+  FiscalPeriodsManager
 } from '../components/Settings';
 import RoleSwitcher from '../components/Settings/RoleSwitcher';
 
@@ -47,6 +49,7 @@ const SETTINGS_SECTIONS: SettingsSection[] = [
     label: 'أساسية',
     tabs: [
       { id: 'company', label: 'الشركة', icon: Building2, color: 'text-blue-500', component: CompanySettings },
+      { id: 'branches', label: 'الفروع', icon: MapPin, color: 'text-red-500', component: BranchesManager },
       { id: 'users', label: 'المستخدمين', icon: Shield, color: 'text-indigo-500', component: RolesManager },
       { id: 'role', label: 'الدور الحالي', icon: Users, color: 'text-purple-500', component: RoleSwitcher }
     ]
@@ -55,6 +58,7 @@ const SETTINGS_SECTIONS: SettingsSection[] = [
     id: 'financial',
     label: 'مالية',
     tabs: [
+      { id: 'fiscal', label: 'الفترات المالية', icon: Calendar, color: 'text-purple-500', component: FiscalPeriodsManager },
       { id: 'currency', label: 'العملات', icon: Coins, color: 'text-yellow-500', component: CurrencyManager },
       { id: 'operations', label: 'العمليات', icon: Receipt, color: 'text-green-500', component: OperationsSettings }
     ]
@@ -165,6 +169,7 @@ const Settings: React.FC = () => {
   const [activeSection, setActiveSection] = useState('basic');
   const [activeTab, setActiveTab] = useState('company');
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
 
   // Get current component
   const allTabs = SETTINGS_SECTIONS.flatMap(s => s.tabs);
@@ -228,9 +233,40 @@ const Settings: React.FC = () => {
         </aside>
 
         {/* Mobile Tab Bar */}
-        <div className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-slate-900 border-t border-gray-100 dark:border-indigo-900/30 px-2 py-2">
+        <div className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-slate-900 border-t border-gray-100 dark:border-indigo-900/30 px-2 py-2 safe-area-bottom">
+          {/* قائمة المزيد المنبثقة */}
+          {showMoreMenu && (
+            <>
+              <div
+                className="fixed inset-0 z-[48] bg-black/30 backdrop-blur-sm"
+                onClick={() => setShowMoreMenu(false)}
+              />
+              <div className="absolute bottom-full left-2 right-2 mb-2 z-[49] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-indigo-800 p-3 max-h-[60vh] overflow-y-auto">
+                <div className="grid grid-cols-4 gap-2">
+                  {allTabs.slice(5).map((tab) => (
+                    <button
+                      key={tab.id}
+                      onClick={() => {
+                        setActiveTab(tab.id);
+                        setShowMoreMenu(false);
+                      }}
+                      className={`flex flex-col items-center gap-1.5 p-3 rounded-xl transition-all ${activeTab === tab.id
+                          ? 'bg-primary/10 text-primary'
+                          : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
+                        }`}
+                    >
+                      <tab.icon size={20} />
+                      <span className="text-[9px] font-bold text-center leading-tight">{tab.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* شريط التبويبات الرئيسي */}
           <div className="flex overflow-x-auto gap-1 no-scrollbar">
-            {allTabs.slice(0, 6).map((tab) => (
+            {allTabs.slice(0, 5).map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
@@ -243,7 +279,13 @@ const Settings: React.FC = () => {
                 <span>{tab.label}</span>
               </button>
             ))}
-            <button className="flex flex-col items-center gap-1 px-3 py-2 rounded-xl text-[10px] font-bold text-gray-400 flex-shrink-0">
+            <button
+              onClick={() => setShowMoreMenu(!showMoreMenu)}
+              className={`flex flex-col items-center gap-1 px-3 py-2 rounded-xl text-[10px] font-bold flex-shrink-0 transition-all ${showMoreMenu || allTabs.slice(5).some(t => t.id === activeTab)
+                  ? 'bg-primary/10 text-primary'
+                  : 'text-gray-400'
+                }`}
+            >
               <Menu size={18} />
               <span>المزيد</span>
             </button>

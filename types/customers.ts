@@ -1,16 +1,20 @@
 
 export interface Customer {
     id: string;
+    company_id?: string;  // إضافة للتوافق مع Supabase
     name: string;
-    companyName: string;
-    category: string;
-    phone: string;
+    companyName?: string;
+    category?: string;
+    phone?: string;  // جعل اختياري للتوافق مع Supabase
     email?: string;
     taxNumber?: string;
     address?: string;
     balance?: number;
-    status: 'active' | 'inactive' | 'late';
+    notes?: string;
+    isActive?: boolean;
+    status?: 'active' | 'inactive' | 'late';
     createdAt?: string;
+    updatedAt?: string;
     /** هل هذا الزبون العام (الافتراضي) */
     isGeneral?: boolean;
     /** هل يُمنع البيع الآجل لهذا العميل (نقدي فقط) */

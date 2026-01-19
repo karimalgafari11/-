@@ -98,6 +98,7 @@ const LoginPage: React.FC = () => {
                 if (authUser) {
                     setUser({
                         id: authUser.id,
+                        companyId: authUser.companyId || '',
                         name: authUser.name,
                         email: authUser.email || email,
                         role: authUser.role,
@@ -191,13 +192,13 @@ const LoginPage: React.FC = () => {
             </div>
 
             {/* Main Container */}
-            <div className="relative z-10 w-full max-w-5xl flex flex-col lg:flex-row items-center gap-8 lg:gap-16">
+            <div className="relative z-10 w-full max-w-5xl flex flex-col-reverse lg:flex-row items-center gap-4 sm:gap-8 lg:gap-16">
 
                 {/* Left Side - Dynamo Illustration */}
                 <div className="flex-1 flex flex-col items-center justify-center">
 
                     {/* Dynamo/Alternator SVG */}
-                    <div className="relative w-64 h-64 lg:w-80 lg:h-80">
+                    <div className="relative w-32 h-32 sm:w-48 sm:h-48 lg:w-80 lg:h-80">
                         {/* Outer Ring - Stator */}
                         <div
                             className="absolute inset-0 rounded-full border-8 border-slate-700"
@@ -213,12 +214,12 @@ const LoginPage: React.FC = () => {
                         {[...Array(12)].map((_, i) => (
                             <div
                                 key={i}
-                                className="absolute w-4 h-12 bg-gradient-to-b from-amber-600 via-amber-500 to-amber-600 rounded"
+                                className="absolute w-2 h-6 sm:w-3 sm:h-8 lg:w-4 lg:h-12 bg-gradient-to-b from-amber-600 via-amber-500 to-amber-600 rounded"
                                 style={{
                                     left: '50%',
                                     top: '50%',
                                     transformOrigin: '50% 50%',
-                                    transform: `translate(-50%, -100%) rotate(${i * 30}deg) translateY(-80px)`
+                                    transform: `translate(-50%, -100%) rotate(${i * 30}deg) translateY(-40px)`
                                 }}
                             />
                         ))}
@@ -248,7 +249,7 @@ const LoginPage: React.FC = () => {
 
                         {/* Center Core */}
                         <div className="absolute inset-24 rounded-full bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/30">
-                            <Zap size={40} className="text-white animate-pulse" />
+                            <Zap className="text-white animate-pulse w-5 h-5 sm:w-8 sm:h-8 lg:w-10 lg:h-10" />
                         </div>
 
                         {/* Energy Lines */}
@@ -262,22 +263,22 @@ const LoginPage: React.FC = () => {
                     </div>
 
                     {/* App Title */}
-                    <div className="mt-8 text-center">
-                        <div className="flex items-center justify-center gap-3 mb-2">
-                            <Settings className="text-cyan-400 animate-spin" style={{ animationDuration: '8s' }} size={28} />
-                            <h1 className="text-3xl lg:text-4xl font-black text-white tracking-tight">
+                    <div className="mt-4 sm:mt-6 lg:mt-8 text-center">
+                        <div className="flex items-center justify-center gap-2 sm:gap-3 mb-2">
+                            <Settings className="text-cyan-400 animate-spin w-4 h-4 sm:w-5 sm:h-5 lg:w-7 lg:h-7" style={{ animationDuration: '8s' }} />
+                            <h1 className="text-xl sm:text-2xl lg:text-4xl font-black text-white tracking-tight">
                                 نظام <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">الزهراء</span>
                             </h1>
                         </div>
-                        <p className="text-sm text-slate-400 font-bold">
+                        <p className="text-xs sm:text-sm text-slate-400 font-bold">
                             ALZHRA FINANCE SYSTEM
                         </p>
                     </div>
 
-                    {/* Welcome Message - Animated */}
-                    <div className="mt-6 h-8">
+                    {/* Welcome Message - Animated - Hidden on mobile for space */}
+                    <div className="hidden sm:block mt-4 lg:mt-6 h-8">
                         <p
-                            className="text-cyan-400 font-bold text-sm text-center transition-all duration-500"
+                            className="text-cyan-400 font-bold text-xs sm:text-sm text-center transition-all duration-500"
                             key={currentMessage}
                             style={{ animation: 'fadeInUp 0.5s ease-out' }}
                         >
@@ -288,20 +289,20 @@ const LoginPage: React.FC = () => {
 
                 {/* Right Side - Login Form */}
                 <div className="flex-1 w-full max-w-md">
-                    <div className="relative p-8 rounded-3xl bg-slate-900/80 backdrop-blur-xl border border-slate-700/50 shadow-2xl shadow-cyan-500/10">
+                    <div className="relative p-4 sm:p-6 lg:p-8 rounded-2xl sm:rounded-3xl bg-slate-900/80 backdrop-blur-xl border border-slate-700/50 shadow-2xl shadow-cyan-500/10">
 
                         {/* Form Glow */}
                         <div className="absolute -inset-1 bg-gradient-to-r from-cyan-500/20 via-blue-500/20 to-purple-500/20 rounded-3xl blur-xl opacity-50" />
 
                         <div className="relative z-10">
                             {/* Form Header */}
-                            <div className="text-center mb-8">
-                                <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-cyan-500 to-blue-600 mb-4 shadow-lg shadow-cyan-500/30">
-                                    {mode === 'login' && <Shield size={32} className="text-white" />}
-                                    {mode === 'register' && <User size={32} className="text-white" />}
-                                    {mode === 'forgot' && <RefreshCw size={32} className="text-white" />}
+                            <div className="text-center mb-4 sm:mb-6 lg:mb-8">
+                                <div className="inline-flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 lg:w-16 lg:h-16 rounded-xl sm:rounded-2xl bg-gradient-to-br from-cyan-500 to-blue-600 mb-3 sm:mb-4 shadow-lg shadow-cyan-500/30">
+                                    {mode === 'login' && <Shield className="text-white w-6 h-6 sm:w-7 sm:h-7 lg:w-8 lg:h-8" />}
+                                    {mode === 'register' && <User className="text-white w-6 h-6 sm:w-7 sm:h-7 lg:w-8 lg:h-8" />}
+                                    {mode === 'forgot' && <RefreshCw className="text-white w-6 h-6 sm:w-7 sm:h-7 lg:w-8 lg:h-8" />}
                                 </div>
-                                <h2 className="text-2xl font-black text-white mb-1">
+                                <h2 className="text-lg sm:text-xl lg:text-2xl font-black text-white mb-1">
                                     {mode === 'login' && 'تسجيل الدخول'}
                                     {mode === 'register' && 'حساب جديد'}
                                     {mode === 'forgot' && 'استعادة كلمة المرور'}
@@ -339,7 +340,7 @@ const LoginPage: React.FC = () => {
                                             placeholder="الاسم الكامل"
                                             value={name}
                                             onChange={(e) => setName(e.target.value)}
-                                            className="w-full pr-12 pl-4 py-4 bg-slate-800/50 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 transition-all outline-none"
+                                            className="w-full pr-10 sm:pr-12 pl-4 py-3 sm:py-4 bg-slate-800/50 border border-slate-700 rounded-lg sm:rounded-xl text-white text-sm sm:text-base placeholder-slate-500 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 transition-all outline-none"
                                         />
                                     </div>
                                 )}
@@ -352,7 +353,7 @@ const LoginPage: React.FC = () => {
                                         placeholder="البريد الإلكتروني"
                                         value={email}
                                         onChange={(e) => setEmail(e.target.value)}
-                                        className="w-full pr-12 pl-4 py-4 bg-slate-800/50 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 transition-all outline-none"
+                                        className="w-full pr-10 sm:pr-12 pl-4 py-3 sm:py-4 bg-slate-800/50 border border-slate-700 rounded-lg sm:rounded-xl text-white text-sm sm:text-base placeholder-slate-500 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 transition-all outline-none"
                                     />
                                 </div>
 
@@ -365,7 +366,7 @@ const LoginPage: React.FC = () => {
                                             placeholder="كلمة المرور"
                                             value={password}
                                             onChange={(e) => setPassword(e.target.value)}
-                                            className="w-full pr-12 pl-12 py-4 bg-slate-800/50 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 transition-all outline-none"
+                                            className="w-full pr-10 sm:pr-12 pl-10 sm:pl-12 py-3 sm:py-4 bg-slate-800/50 border border-slate-700 rounded-lg sm:rounded-xl text-white text-sm sm:text-base placeholder-slate-500 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 transition-all outline-none"
                                         />
                                         <button
                                             type="button"
@@ -386,7 +387,7 @@ const LoginPage: React.FC = () => {
                                             placeholder="تأكيد كلمة المرور"
                                             value={confirmPassword}
                                             onChange={(e) => setConfirmPassword(e.target.value)}
-                                            className="w-full pr-12 pl-4 py-4 bg-slate-800/50 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 transition-all outline-none"
+                                            className="w-full pr-10 sm:pr-12 pl-4 py-3 sm:py-4 bg-slate-800/50 border border-slate-700 rounded-lg sm:rounded-xl text-white text-sm sm:text-base placeholder-slate-500 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 transition-all outline-none"
                                         />
                                     </div>
                                 )}
@@ -420,7 +421,7 @@ const LoginPage: React.FC = () => {
                                 <button
                                     type="submit"
                                     disabled={isLoading}
-                                    className="w-full py-4 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-black text-base flex items-center justify-center gap-2 hover:from-cyan-400 hover:to-blue-500 transition-all shadow-lg shadow-cyan-500/30 disabled:opacity-50 disabled:cursor-not-allowed group"
+                                    className="w-full py-3 sm:py-4 rounded-lg sm:rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-black text-sm sm:text-base flex items-center justify-center gap-2 hover:from-cyan-400 hover:to-blue-500 transition-all shadow-lg shadow-cyan-500/30 disabled:opacity-50 disabled:cursor-not-allowed group"
                                 >
                                     {isLoading ? (
                                         <>

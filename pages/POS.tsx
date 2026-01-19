@@ -43,21 +43,21 @@ const POSPage: React.FC = () => {
 
     // تحويل المنتجات لنوع POSProduct
     const posProducts: POSProduct[] = useMemo(() => {
-        return products.map(p => ({
+        return (products as any[]).map(p => ({
             id: p.id,
             name: p.name,
-            nameEn: p.nameEn,
-            sku: p.sku,
+            nameEn: p.name_en || p.nameEn,
+            sku: p.sku || '',
             barcode: p.barcode,
             category: p.category,
             unit: p.unit,
-            salePrice: p.salePrice,
-            costPrice: p.costPrice,
-            quantity: p.quantity,
-            minQuantity: p.minQuantity,
+            salePrice: p.sale_price ?? p.salePrice ?? p.price ?? 0,
+            costPrice: p.cost_price ?? p.costPrice ?? p.cost ?? 0,
+            quantity: p.quantity ?? 0,
+            minQuantity: p.min_quantity ?? p.minQuantity ?? p.min_stock_level ?? 0,
             description: p.description,
-            image: p.image,
-            isActive: p.isActive
+            image: p.image_url ?? p.image,
+            isActive: p.is_active ?? p.isActive ?? true
         }));
     }, [products]);
 
@@ -169,19 +169,17 @@ const POSPage: React.FC = () => {
                 quantity: item.quantity,
                 unitPrice: item.price,
                 total: item.price * item.quantity,
-                costPrice: item.product.costPrice || 0,
-                discount: 0,
                 tax: 0
             })),
             subTotal: cartTotal,
             taxTotal: 0,
             discount: 0,
-            netTotal: cartTotal,
-            paidAmount: amountPaid,
-            remainingAmount: Math.max(0, cartTotal - amountPaid),
+            grandTotal: cartTotal,
             paymentMethod,
             status: 'paid',
-            currency: settings.currency?.defaultCurrency || 'IQD'
+            saleCurrency: settings.currency?.defaultCurrency || 'SAR',
+            exchangeRateUsed: 1,
+            baseGrandTotal: cartTotal
         };
 
         addSale(sale);

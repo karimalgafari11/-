@@ -27,7 +27,7 @@ const Inventory: React.FC = () => {
 
   const handleDeleteItem = (id: string) => {
     if (window.confirm('هل أنت متأكد من حذف هذا الصنف؟')) {
-      deleteInventoryItem(id);
+      deleteInventoryItem?.(id);
     }
   };
 
@@ -185,7 +185,7 @@ const Inventory: React.FC = () => {
       <ItemFormModal
         isOpen={isItemFormOpen}
         onClose={() => setIsItemFormOpen(false)}
-        onSave={(item) => { addInventoryItem(item); showNotification('تم إضافة الصنف للمخزون'); }}
+        onSave={(item) => { addInventoryItem?.(item); showNotification('تم إضافة الصنف للمخزون'); }}
       />
       <ItemDetailModal isOpen={isDetailOpen} onClose={() => setIsDetailOpen(false)} item={selectedItem} />
 

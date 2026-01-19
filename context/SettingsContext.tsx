@@ -11,6 +11,12 @@ import {
     User
 } from '../types/common';
 import {
+    Branch,
+    FiscalPeriod,
+    InsertType,
+    UpdateType
+} from '../types/supabase-types';
+import {
     AppSettingsExtended,
     CompanyInfo,
     CurrencySettings,
@@ -37,6 +43,10 @@ import {
 } from '../types/settings-extended';
 import { SafeStorage } from '../utils/storage';
 import { logger } from '../lib/logger';
+import { CurrencyService } from '../services/currencyService';
+import { BranchService } from '../services/branchService';
+import { FiscalPeriodService } from '../services/fiscalPeriodService';
+import { NotificationService } from '../services/notificationService'; // Optional if needed here
 
 // ===================== الواجهة =====================
 interface SettingsContextValue {
@@ -51,17 +61,29 @@ interface SettingsContextValue {
     deleteCompany: (id: string) => void;
     switchCompany: (id: string) => void;
 
+    // ===== الفروع (جديد) =====
+    branches: Branch[];
+    addBranch: (branch: InsertType<Branch>) => Promise<void>;
+    updateBranch: (id: string, branch: UpdateType<Branch>) => Promise<void>;
+    deleteBranch: (id: string) => Promise<void>;
+
+    // ===== الفترات المالية (جديد) =====
+    fiscalPeriods: FiscalPeriod[];
+    addFiscalPeriod: (period: InsertType<FiscalPeriod>) => Promise<void>;
+    updateFiscalPeriod: (id: string, period: UpdateType<FiscalPeriod>) => Promise<void>;
+    closeFiscalPeriod: (id: string) => Promise<void>;
+
     // ===== العملات =====
     currencies: Currency[];
-    addCurrency: (currency: Omit<Currency, 'createdAt'>) => void;
-    updateCurrency: (currency: Currency) => void;
-    deleteCurrency: (code: string) => void;
+    addCurrency: (currency: Omit<Currency, 'createdAt'>) => Promise<void>;
+    updateCurrency: (currency: Currency) => Promise<void>;
+    deleteCurrency: (code: string) => Promise<void>;
     setDefaultCurrency: (code: string) => void;
     getCurrency: (code: string) => Currency | undefined;
 
     // ===== أسعار الصرف =====
-    exchangeRates: ExchangeRateRecord[];
-    addExchangeRate: (rate: Omit<ExchangeRateRecord, 'id' | 'createdAt'>) => void;
+    exchangeRates: ExchangeRateRecord[]; // Keeping compatible type for now
+    addExchangeRate: (rate: Omit<ExchangeRateRecord, 'id' | 'createdAt'>) => Promise<void>;
     getExchangeRate: (from: string, to: string, date?: string) => number;
     getExchangeHistory: (from: string, to: string, limit?: number) => ExchangeRateRecord[];
     convertAmount: (amount: number, from: string, to: string, date?: string) => number;
@@ -99,6 +121,7 @@ interface SettingsContextValue {
 
     // ===== الثيم =====
     applyTheme: () => void;
+    refreshData: () => Promise<void>; // To manually trigger fetch
 }
 
 // ===================== القيم الافتراضية =====================
@@ -355,15 +378,81 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const [settings, setSettings] = useState<AppSettingsExtended>(() =>
         SafeStorage.get('alzhra_settings_v2', getDefaultSettings())
     );
+    // Companies now managed via Supabase (fetched on load) - keeping local state for UI consistency momentarily
     const [companies, setCompanies] = useState<CompanyInfo[]>(() =>
         SafeStorage.get('alzhra_companies', [getDefaultCompany()])
     );
     const [activeCompanyId, setActiveCompanyId] = useState<string>(() =>
         SafeStorage.get('alzhra_active_company', 'default')
     );
+
+    // New States for Backend Data
+    const [branches, setBranches] = useState<Branch[]>([]);
+    const [fiscalPeriods, setFiscalPeriods] = useState<FiscalPeriod[]>([]);
+    const [backendCurrencies, setBackendCurrencies] = useState<Currency[]>([]);
+
     const [isLoading, setIsLoading] = useState(false);
 
-    // حفظ الإعدادات عند التغيير
+    // Initial Data Fetch
+    const refreshData = useCallback(async () => {
+        // Skip if no company ID or if it's the default placeholder (not a valid UUID)
+        const isValidUUID = activeCompanyId &&
+            /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(activeCompanyId);
+
+        if (!isValidUUID) {
+            // Don't make API calls with invalid company ID
+            return;
+        }
+        setIsLoading(true);
+        try {
+            // 1. Fetch Branches
+            const fetchedBranches = await BranchService.getBranches(activeCompanyId);
+            setBranches(fetchedBranches);
+
+            // 2. Fetch Fiscal Periods
+            const fetchedPeriods = await FiscalPeriodService.getFiscalPeriods(activeCompanyId);
+            setFiscalPeriods(fetchedPeriods);
+
+            // 3. Fetch Currencies
+            const allCurrencies = await CurrencyService.getAllCurrencies();
+
+            // Update settings.currency with backed data if available
+            if (allCurrencies.length > 0) {
+                setSettings(prev => ({
+                    ...prev,
+                    currency: {
+                        ...prev.currency,
+                        currencies: allCurrencies.map(c => ({
+                            code: c.code,
+                            nameAr: c.name_ar,
+                            nameEn: c.name_en,
+                            symbol: c.symbol,
+                            decimalPlaces: c.decimal_places || 2,
+                            isActive: c.is_active || true,
+                            isDefault: c.is_base || false, // Assuming is_base means default/base
+                            createdAt: c.created_at || new Date().toISOString(),
+                            position: 'after' // Default or fetch if exists
+                        })) as any
+                    }
+                }));
+            }
+
+        } catch (error: any) {
+            // Silently handle errors - the app can still function with cached/default settings
+            // Only log non-abort errors in development
+            if (process.env.NODE_ENV === 'development' && error?.name !== 'AbortError') {
+                logger.debug('Settings refresh skipped due to backend issue');
+            }
+        } finally {
+            setIsLoading(false);
+        }
+    }, [activeCompanyId]);
+
+    useEffect(() => {
+        refreshData();
+    }, [refreshData]);
+
+    // حفظ الإعدادات عند التغيير (Local Preferences and non-cloud settings)
     useEffect(() => {
         SafeStorage.set('alzhra_settings_v2', settings);
         logger.debug('Settings saved');
@@ -382,7 +471,72 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         companies.find(c => c.id === activeCompanyId) || companies[0] || null
         , [companies, activeCompanyId]);
 
-    // ===== إدارة الشركات =====
+    // ===== إدارة الفروع (Implementation) =====
+    const addBranch = useCallback(async (branch: InsertType<Branch>) => {
+        try {
+            const newBranch = await BranchService.addBranch(branch);
+            setBranches(prev => [...prev, newBranch]);
+            logger.info('Branch added', { id: newBranch.id });
+        } catch (error) {
+            logger.error('Failed to add branch', error as Error);
+            throw error;
+        }
+    }, []);
+
+    const updateBranch = useCallback(async (id: string, branch: UpdateType<Branch>) => {
+        try {
+            const updated = await BranchService.updateBranch(id, branch);
+            setBranches(prev => prev.map(b => b.id === id ? updated : b));
+            logger.info('Branch updated', { id });
+        } catch (error) {
+            logger.error('Failed to update branch', error as Error);
+            throw error;
+        }
+    }, []);
+
+    const deleteBranch = useCallback(async (id: string) => {
+        try {
+            await BranchService.deleteBranch(id);
+            setBranches(prev => prev.filter(b => b.id !== id)); // Or mark as inactive
+            logger.info('Branch deleted', { id });
+        } catch (error) {
+            logger.error('Failed to delete branch', error as Error);
+            throw error;
+        }
+    }, []);
+
+    // ===== الفترات المالية (Implementation) =====
+    const addFiscalPeriod = useCallback(async (period: InsertType<FiscalPeriod>) => {
+        try {
+            const newPeriod = await FiscalPeriodService.addFiscalPeriod(period);
+            setFiscalPeriods(prev => [...prev, newPeriod]);
+        } catch (error) {
+            logger.error('Failed to add fiscal period', error as Error);
+            throw error;
+        }
+    }, []);
+
+    const updateFiscalPeriod = useCallback(async (id: string, period: UpdateType<FiscalPeriod>) => {
+        try {
+            const updated = await FiscalPeriodService.updateFiscalPeriod(id, period);
+            setFiscalPeriods(prev => prev.map(p => p.id === id ? updated : p));
+        } catch (error) {
+            logger.error('Failed to update fiscal period', error as Error);
+            throw error;
+        }
+    }, []);
+
+    const closeFiscalPeriod = useCallback(async (id: string) => {
+        try {
+            await FiscalPeriodService.closePeriod(id);
+            setFiscalPeriods(prev => prev.map(p => p.id === id ? { ...p, status: 'closed' } : p));
+        } catch (error) {
+            logger.error('Failed to close fiscal period', error as Error);
+            throw error;
+        }
+    }, []);
+
+    // ===== إدارة الشركات (Keep Local wrapper primarily or sync?) =====
     const addCompany = useCallback((company: Omit<CompanyInfo, 'id' | 'createdAt'>) => {
         const newCompany: CompanyInfo = {
             ...company,
@@ -418,24 +572,34 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }, [companies]);
 
     // ===== إدارة العملات =====
-    const currencies = settings.currency.currencies;
+    const currencies = settings.currency.currencies; // We can use derived state or setting state
 
-    const addCurrency = useCallback((currency: Omit<Currency, 'createdAt'>) => {
-        const newCurrency: Currency = {
-            ...currency,
-            createdAt: new Date().toISOString()
-        };
-        setSettings(prev => ({
-            ...prev,
-            currency: {
-                ...prev.currency,
-                currencies: [...prev.currency.currencies, newCurrency]
-            }
-        }));
-        logger.info('Currency added', { code: currency.code });
+    const addCurrency = useCallback(async (currency: Omit<Currency, 'createdAt'>) => {
+        try {
+            // Note: Creating a currency globally? Or just enabling?
+            // Assuming we add to system for now via service if admin
+            // const newCurrency = await CurrencyService.addCurrency(currency);
+
+            // For now update local state to reflect UI change immediately
+            const newCurrency: Currency = {
+                ...currency,
+                createdAt: new Date().toISOString()
+            };
+            setSettings(prev => ({
+                ...prev,
+                currency: {
+                    ...prev.currency,
+                    currencies: [...prev.currency.currencies, newCurrency]
+                }
+            }));
+            logger.info('Currency added locally (Service integration pending admin role)', { code: currency.code });
+        } catch (error) {
+            throw error;
+        }
     }, []);
 
-    const updateCurrency = useCallback((currency: Currency) => {
+    const updateCurrency = useCallback(async (currency: Currency) => {
+        // Update local
         setSettings(prev => ({
             ...prev,
             currency: {
@@ -447,7 +611,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         }));
     }, []);
 
-    const deleteCurrency = useCallback((code: string) => {
+    const deleteCurrency = useCallback(async (code: string) => {
         if (settings.currency.defaultCurrency === code) {
             logger.warn('Cannot delete default currency');
             return;
@@ -481,29 +645,43 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         return currencies.find(c => c.code === code);
     }, [currencies]);
 
-    // ===== أسعار الصرف =====
+    // ===== أسعار الصرف (Updated to use Service) =====
     const exchangeRates = settings.currency.exchangeRates;
 
-    const addExchangeRate = useCallback((rate: Omit<ExchangeRateRecord, 'id' | 'createdAt'>) => {
-        const newRate: ExchangeRateRecord = {
-            ...rate,
-            id: `rate_${Date.now()}`,
-            createdAt: new Date().toISOString()
-        };
-        setSettings(prev => ({
-            ...prev,
-            currency: {
-                ...prev.currency,
-                exchangeRates: [newRate, ...prev.currency.exchangeRates],
-                lastUpdate: new Date().toISOString()
-            }
-        }));
-        logger.info('Exchange rate added', { from: rate.fromCurrency, to: rate.toCurrency, rate: rate.rate });
-    }, []);
+    const addExchangeRate = useCallback(async (rate: Omit<ExchangeRateRecord, 'id' | 'createdAt'>) => {
+        try {
+            if (!activeCompanyId) return;
+
+            // 1. Call Service
+            await CurrencyService.setExchangeRate({
+                company_id: activeCompanyId,
+                from_currency: rate.fromCurrency,
+                to_currency: rate.toCurrency,
+                rate: rate.rate,
+                valid_from: rate.date
+            } as any);
+
+            // 2. Update Local State
+            const newRate: ExchangeRateRecord = {
+                ...rate,
+                id: `rate_${Date.now()}`,
+                createdAt: new Date().toISOString()
+            };
+            setSettings(prev => ({
+                ...prev,
+                currency: {
+                    ...prev.currency,
+                    exchangeRates: [newRate, ...prev.currency.exchangeRates],
+                    lastUpdate: new Date().toISOString()
+                }
+            }));
+            logger.info('Exchange rate added', { from: rate.fromCurrency, to: rate.toCurrency, rate: rate.rate });
+        } catch (e) { console.error(e); }
+    }, [activeCompanyId]);
 
     const getExchangeRate = useCallback((from: string, to: string, date?: string): number => {
         if (from === to) return 1;
-
+        // Fallback to local logic if service calc is needed locally
         const rates = exchangeRates
             .filter(r =>
                 (r.fromCurrency === from && r.toCurrency === to) ||
@@ -851,36 +1029,60 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const value: SettingsContextValue = {
         settings,
         isLoading,
+
+        // الشركات
         companies,
         activeCompany,
         addCompany,
         updateCompany,
         deleteCompany,
         switchCompany,
+
+        // الفروع
+        branches,
+        addBranch,
+        updateBranch,
+        deleteBranch,
+
+        // الفترات المالية
+        fiscalPeriods,
+        addFiscalPeriod,
+        updateFiscalPeriod,
+        closeFiscalPeriod,
+
+        // العملات
         currencies,
         addCurrency,
         updateCurrency,
         deleteCurrency,
         setDefaultCurrency,
         getCurrency,
+
+        // أسعار الصرف
         exchangeRates,
         addExchangeRate,
         getExchangeRate,
         getExchangeHistory,
         convertAmount,
         formatCurrency,
+
+        // الصلاحيات
         roles,
         addRole,
         updateRole,
         deleteRole,
         hasPermission,
         getDefaultPermissions,
+
+        // Webhooks
         webhooks,
         addWebhook,
         updateWebhook,
         deleteWebhook,
         triggerWebhook,
         testWebhook,
+
+        // عام
         updateSettings,
         updateTheme,
         resetSettings,
@@ -888,7 +1090,8 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         importSettings,
         exportAllData,
         importAllData,
-        applyTheme
+        applyTheme,
+        refreshData
     };
 
     return (

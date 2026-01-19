@@ -16,10 +16,11 @@ const CustomerLedgerModal: React.FC<CustomerLedgerModalProps> = ({ isOpen, onClo
   if (!customer) return null;
 
   // فلترة المعاملات الخاصة بالعملاء
-  const ledgerData = transactions.filter(t => t.account === 'عملاء' && t.description.includes(customer.companyName));
+  const customerDisplayName = customer.companyName || customer.name || '';
+  const ledgerData = transactions.filter(t => t.account === 'عملاء' && t.description.includes(customerDisplayName));
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={`كشف حساب العميل: ${customer.companyName}`} size="xl">
+    <Modal isOpen={isOpen} onClose={onClose} title={`كشف حساب العميل: ${customerDisplayName}`} size="xl">
       <div className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="p-5 bg-slate-900 text-white flex flex-col justify-between">

@@ -1,14 +1,15 @@
 
 export interface Supplier {
     id: string;
+    company_id?: string;  // إضافة للتوافق مع Supabase
     name: string;
-    companyName: string;
+    companyName?: string;  // جعل اختياري (للتوافق)
     contactName?: string;
-    category: string;
-    phone: string;
-    email: string;
-    taxNumber: string;
-    address: string;
+    category?: string;  // جعل اختياري
+    phone?: string;  // جعل اختياري
+    email?: string;  // جعل اختياري
+    taxNumber?: string;  // جعل اختياري
+    address?: string;  // جعل اختياري
     balance: number;
     status: 'active' | 'inactive' | 'blocked';
     notes?: string;

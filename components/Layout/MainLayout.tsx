@@ -24,9 +24,21 @@ import { useSwipe } from '../../hooks/useSwipe';
 
 const MainLayout: React.FC = () => {
   const { notifications, removeNotification, theme, language } = useApp();
-  const { isAuthenticated } = useUser();
+  const { isAuthenticated, isLoading } = useUser();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  // عرض شاشة تحميل أثناء التحقق من الجلسة
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-950 via-indigo-950/80 to-slate-950">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-4 border-cyan-500 border-t-transparent mx-auto mb-4"></div>
+          <p className="text-white text-lg font-bold">جاري التحميل...</p>
+        </div>
+      </div>
+    );
+  }
 
   // التحقق من تسجيل الدخول - إعادة توجيه لصفحة الدخول إذا لم يكن مسجلاً
   if (!isAuthenticated) {

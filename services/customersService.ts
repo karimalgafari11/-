@@ -179,7 +179,7 @@ export const customersService = {
             const customer = await this.getById(id);
             if (!customer) return false;
 
-            const newBalance = customer.balance + amount;
+            const newBalance = (customer.balance || 0) + amount;
 
             const { error } = await supabase
                 .from('customers')

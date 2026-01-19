@@ -20,7 +20,7 @@ import { translations } from '../../../i18n/translations';
 
 export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [user, setUserState] = useState<User | null>(() =>
-        SafeStorage.get('alzhra_user', { id: '1', name: 'أحمد المحاسب', role: 'admin', isActive: true })
+        SafeStorage.get('alzhra_user', { id: '1', companyId: '', name: 'أحمد المحاسب', role: 'manager', isActive: true })
     );
 
     const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => !!user);

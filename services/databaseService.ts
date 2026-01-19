@@ -1,23 +1,11 @@
 /**
  * Database Service - خدمة قاعدة البيانات
  * طبقة تجريد للتعامل مع Supabase
- * تدعم العمل بدون اتصال مع المزامنة التلقائية
+ * التخزين السحابي فقط - بدون تخزين محلي
  */
 
 import { supabase } from '../lib/supabaseClient';
-import { companyService } from './companyService';
-import { SyncService } from './syncService';
 import { ActivityLogger } from './activityLogger';
-import { SafeStorage } from '../utils/storage';
-
-// التحقق من تكوين Supabase
-const isSupabaseConfigured = () => {
-    const url = import.meta.env.VITE_SUPABASE_URL;
-    const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
-    return !!(url && key && url.includes('supabase.co'));
-};
-
-const getSupabaseClient = () => isSupabaseConfigured() ? supabase : null;
 
 // أنواع العمليات
 type Operation = 'select' | 'insert' | 'update' | 'delete';
@@ -26,16 +14,15 @@ type Operation = 'select' | 'insert' | 'update' | 'delete';
 interface DatabaseResult<T> {
     data: T | null;
     error: string | null;
-    isOffline: boolean;
 }
 
 /**
  * خدمة قاعدة البيانات
- * تتعامل مع الـ localStorage محلياً وتزامن مع Supabase عند الاتصال
+ * تتعامل مباشرة مع Supabase للتخزين السحابي
  */
 export const DatabaseService = {
     /**
-     * جلب البيانات
+     * جلب البيانات من Supabase
      */
     async select<T>(
         table: string,
@@ -45,137 +32,91 @@ export const DatabaseService = {
             limit?: number;
         }
     ): Promise<DatabaseResult<T[]>> {
-        const localKey = `alzhra_${table}`;
-        const localData = SafeStorage.get<T[]>(localKey, []);
+        try {
+            let query = supabase.from(table).select('*');
 
-        // إذا كان Supabase متصلاً، جلب البيانات منه
-        if (isSupabaseConfigured() && navigator.onLine) {
-            const client = getSupabaseClient();
-            if (client) {
-                try {
-                    let query = client.from(table).select('*');
-
-                    if (options?.filter) {
-                        Object.entries(options.filter).forEach(([key, value]) => {
-                            query = query.eq(key, value);
-                        });
-                    }
-
-                    if (options?.orderBy) {
-                        const [column, direction] = options.orderBy.split(' ');
-                        query = query.order(column, { ascending: direction !== 'desc' });
-                    }
-
-                    if (options?.limit) {
-                        query = query.limit(options.limit);
-                    }
-
-                    const { data, error } = await query;
-
-                    if (!error && data) {
-                        // تحديث التخزين المحلي فقط إذا نجح الجلب
-                        SafeStorage.set(localKey, data);
-                        return { data: data as T[], error: null, isOffline: false };
-                    } else if (error) {
-                        console.error(`Supabase error fetching ${table}:`, error);
-                    }
-                } catch (err) {
-                    console.error(`Error fetching ${table}:`, err);
-                }
+            if (options?.filter) {
+                Object.entries(options.filter).forEach(([key, value]) => {
+                    query = query.eq(key, value);
+                });
             }
+
+            if (options?.orderBy) {
+                const [column, direction] = options.orderBy.split(' ');
+                query = query.order(column, { ascending: direction !== 'desc' });
+            }
+
+            if (options?.limit) {
+                query = query.limit(options.limit);
+            }
+
+            const { data, error } = await query;
+
+            if (error) {
+                console.error(`❌ خطأ في جلب ${table}:`, error);
+                return { data: null, error: error.message };
+            }
+
+            return { data: data as T[], error: null };
+        } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : String(err);
+            console.error(`❌ استثناء في جلب ${table}:`, err);
+            return { data: null, error: errorMessage };
         }
-
-        // إرجاع البيانات المحلية
-        let result = localData;
-
-        // تطبيق الفلتر محلياً إذا لم نتمكن من الجلب من السيرفر
-        if (options?.filter) {
-            result = result.filter(item => {
-                return Object.entries(options.filter!).every(([key, value]) =>
-                    (item as Record<string, unknown>)[key] === value
-                );
-            });
-        }
-
-        // تطبيق الحد
-        if (options?.limit) {
-            result = result.slice(0, options.limit);
-        }
-
-        return { data: result, error: null, isOffline: !navigator.onLine };
     },
 
     /**
-     * إدراج بيانات جديدة
+     * إدراج بيانات جديدة في Supabase
      */
     async insert<T extends { id?: string }>(
         table: string,
         data: T,
         context: { userId: string; branchId: string; userName?: string }
     ): Promise<DatabaseResult<T>> {
-        const localKey = `alzhra_${table}`;
-        const localData = SafeStorage.get<T[]>(localKey, []);
+        try {
+            // إضافة معرف إذا لم يكن موجوداً
+            const newData = {
+                ...data,
+                id: data.id || `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+                branch_id: context.branchId
+            };
 
-        // إضافة معرف إذا لم يكن موجوداً
-        const newData = {
-            ...data,
-            id: data.id || `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-            branchId: context.branchId
-        };
+            const { data: insertedData, error } = await supabase
+                .from(table)
+                .insert(newData)
+                .select()
+                .single();
 
-        // حفظ محلياً
-        localData.push(newData as T);
-        SafeStorage.set(localKey, localData);
-
-        // تسجيل النشاط
-        ActivityLogger.log({
-            action: 'create',
-            entityType: table as 'sale' | 'purchase' | 'product',
-            entityId: newData.id,
-            userId: context.userId,
-            userName: context.userName || 'مستخدم',
-            organizationId: 'default',
-            branchId: context.branchId,
-            newData: newData as Record<string, unknown>
-        });
-
-        // إدارة المزامنة
-        const client = getSupabaseClient();
-        const isOnline = navigator.onLine && isSupabaseConfigured() && client;
-        let syncError = null;
-
-        if (isOnline) {
-            try {
-                const { error } = await client!.from(table).insert(newData);
-                if (error) {
-                    console.error(`Supabase insert error in ${table}:`, error);
-                    syncError = error.message;
-                }
-            } catch (err) {
-                console.error(`Error inserting to Supabase ${table}:`, err);
-                syncError = String(err);
+            if (error) {
+                console.error(`❌ خطأ في إدراج ${table}:`, error);
+                return { data: null, error: error.message };
             }
-        }
 
-        // إذا لم نكن متصلين أو فشلت المزامنة، نضيف لقائمة الانتظار
-        if (!isOnline || syncError) {
-            SyncService.addToQueue({
-                operation: 'create',
-                entityType: table,
+            // تسجيل النشاط
+            ActivityLogger.log({
+                action: 'create',
+                entityType: table as 'sale' | 'purchase' | 'product',
                 entityId: newData.id,
-                data: newData as Record<string, unknown>,
                 userId: context.userId,
-                branchId: context.branchId
+                userName: context.userName || 'مستخدم',
+                organizationId: 'default',
+                branchId: context.branchId,
+                newData: newData as Record<string, unknown>
             });
-        }
 
-        return { data: newData as T, error: syncError, isOffline: !isOnline };
+            console.log(`✅ تم إدراج ${table}:`, newData.id);
+            return { data: insertedData as T, error: null };
+        } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : String(err);
+            console.error(`❌ استثناء في إدراج ${table}:`, err);
+            return { data: null, error: errorMessage };
+        }
     },
 
     /**
-     * تحديث بيانات
+     * تحديث بيانات في Supabase
      */
     async update<T extends { id: string }>(
         table: string,
@@ -183,95 +124,160 @@ export const DatabaseService = {
         updates: Partial<T>,
         context: { userId: string; branchId: string; userName?: string }
     ): Promise<DatabaseResult<T>> {
-        const localKey = `alzhra_${table}`;
-        const localData = SafeStorage.get<T[]>(localKey, []);
-        const index = localData.findIndex(item => item.id === id);
+        try {
+            // جلب البيانات القديمة للتسجيل
+            const { data: oldData } = await supabase
+                .from(table)
+                .select('*')
+                .eq('id', id)
+                .single();
 
-        if (index === -1) {
-            return { data: null, error: 'Record not found', isOffline: !navigator.onLine };
-        }
+            const updatedData = {
+                ...updates,
+                updated_at: new Date().toISOString()
+            };
 
-        const oldData = { ...localData[index] };
-        const updatedData = {
-            ...localData[index],
-            ...updates,
-            updatedAt: new Date().toISOString()
-        };
+            const { data: result, error } = await supabase
+                .from(table)
+                .update(updatedData)
+                .eq('id', id)
+                .select()
+                .single();
 
-        localData[index] = updatedData;
-        SafeStorage.set(localKey, localData);
+            if (error) {
+                console.error(`❌ خطأ في تحديث ${table}:`, error);
+                return { data: null, error: error.message };
+            }
 
-        // تسجيل النشاط
-        ActivityLogger.log({
-            action: 'update',
-            entityType: table as 'sale' | 'purchase' | 'product',
-            entityId: id,
-            userId: context.userId,
-            userName: context.userName || 'مستخدم',
-            organizationId: 'default',
-            branchId: context.branchId,
-            oldData: oldData as Record<string, unknown>,
-            newData: updatedData as Record<string, unknown>
-        });
-
-        // إضافة للمزامنة
-        if (!navigator.onLine || !isSupabaseConfigured()) {
-            SyncService.addToQueue({
-                operation: 'update',
-                entityType: table,
+            // تسجيل النشاط
+            ActivityLogger.log({
+                action: 'update',
+                entityType: table as 'sale' | 'purchase' | 'product',
                 entityId: id,
-                data: updatedData as Record<string, unknown>,
                 userId: context.userId,
-                branchId: context.branchId
+                userName: context.userName || 'مستخدم',
+                organizationId: 'default',
+                branchId: context.branchId,
+                oldData: oldData as Record<string, unknown>,
+                newData: result as Record<string, unknown>
             });
-        }
 
-        return { data: updatedData, error: null, isOffline: !navigator.onLine };
+            console.log(`✅ تم تحديث ${table}:`, id);
+            return { data: result as T, error: null };
+        } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : String(err);
+            console.error(`❌ استثناء في تحديث ${table}:`, err);
+            return { data: null, error: errorMessage };
+        }
     },
 
     /**
-     * حذف بيانات
+     * حذف بيانات من Supabase
      */
     async delete(
         table: string,
         id: string,
         context: { userId: string; branchId: string; userName?: string }
     ): Promise<DatabaseResult<boolean>> {
-        const localKey = `alzhra_${table}`;
-        const localData = SafeStorage.get<{ id: string }[]>(localKey, []);
-        const record = localData.find(item => item.id === id);
+        try {
+            // جلب البيانات قبل الحذف للتسجيل
+            const { data: oldData } = await supabase
+                .from(table)
+                .select('*')
+                .eq('id', id)
+                .single();
 
-        if (!record) {
-            return { data: false, error: 'Record not found', isOffline: !navigator.onLine };
-        }
+            const { error } = await supabase
+                .from(table)
+                .delete()
+                .eq('id', id);
 
-        const newData = localData.filter(item => item.id !== id);
-        SafeStorage.set(localKey, newData);
+            if (error) {
+                console.error(`❌ خطأ في حذف ${table}:`, error);
+                return { data: false, error: error.message };
+            }
 
-        // تسجيل النشاط
-        ActivityLogger.log({
-            action: 'delete',
-            entityType: table as 'sale' | 'purchase' | 'product',
-            entityId: id,
-            userId: context.userId,
-            userName: context.userName || 'مستخدم',
-            organizationId: 'default',
-            branchId: context.branchId,
-            oldData: record as Record<string, unknown>
-        });
-
-        // إضافة للمزامنة
-        if (!navigator.onLine || !isSupabaseConfigured()) {
-            SyncService.addToQueue({
-                operation: 'delete',
-                entityType: table,
+            // تسجيل النشاط
+            ActivityLogger.log({
+                action: 'delete',
+                entityType: table as 'sale' | 'purchase' | 'product',
                 entityId: id,
-                data: { id },
                 userId: context.userId,
-                branchId: context.branchId
+                userName: context.userName || 'مستخدم',
+                organizationId: 'default',
+                branchId: context.branchId,
+                oldData: oldData as Record<string, unknown>
             });
-        }
 
-        return { data: true, error: null, isOffline: !navigator.onLine };
+            console.log(`✅ تم حذف ${table}:`, id);
+            return { data: true, error: null };
+        } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : String(err);
+            console.error(`❌ استثناء في حذف ${table}:`, err);
+            return { data: false, error: errorMessage };
+        }
+    },
+
+    /**
+     * جلب سجل واحد
+     */
+    async selectOne<T>(
+        table: string,
+        id: string
+    ): Promise<DatabaseResult<T>> {
+        try {
+            const { data, error } = await supabase
+                .from(table)
+                .select('*')
+                .eq('id', id)
+                .single();
+
+            if (error) {
+                console.error(`❌ خطأ في جلب ${table}:`, error);
+                return { data: null, error: error.message };
+            }
+
+            return { data: data as T, error: null };
+        } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : String(err);
+            console.error(`❌ استثناء في جلب ${table}:`, err);
+            return { data: null, error: errorMessage };
+        }
+    },
+
+    /**
+     * إدراج عدة سجلات
+     */
+    async insertMany<T extends { id?: string }>(
+        table: string,
+        items: T[],
+        context: { userId: string; branchId: string; userName?: string }
+    ): Promise<DatabaseResult<T[]>> {
+        try {
+            const newItems = items.map(item => ({
+                ...item,
+                id: item.id || `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+                branch_id: context.branchId
+            }));
+
+            const { data, error } = await supabase
+                .from(table)
+                .insert(newItems)
+                .select();
+
+            if (error) {
+                console.error(`❌ خطأ في إدراج متعدد ${table}:`, error);
+                return { data: null, error: error.message };
+            }
+
+            console.log(`✅ تم إدراج ${items.length} سجل في ${table}`);
+            return { data: data as T[], error: null };
+        } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : String(err);
+            console.error(`❌ استثناء في إدراج متعدد ${table}:`, err);
+            return { data: null, error: errorMessage };
+        }
     }
 };

@@ -39,8 +39,9 @@ export const DEFAULT_CURRENCIES: Currency[] = [
 
 export interface User {
     id: string;
+    companyId: string;
     name: string;
-    role: 'admin' | 'manager' | 'accountant' | 'employee' | 'cashier' | 'viewer';
+    role: 'manager' | 'accountant' | 'employee';  // توحيد مع Supabase
     avatar?: string;
     email?: string;
     phone?: string;

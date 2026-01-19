@@ -1,6 +1,7 @@
 
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { errorMonitor } from '../../services/errorMonitoring';
+import type { Notification as SystemNotification } from '../../types/supabase-types';
 
 export type NotificationType = 'success' | 'error' | 'warning' | 'info';
 
@@ -18,10 +19,12 @@ export interface Notification {
     type: NotificationType;
     errorDetails?: ErrorDetails;
     timestamp: Date;
+    isSystem?: boolean;
 }
 
 interface NotificationContextValue {
     notifications: Notification[];
+    systemNotifications: SystemNotification[];
     showNotification: (message: string, type?: NotificationType, errorDetails?: ErrorDetails) => void;
     showError: (error: Error | string, suggestion?: string, retryable?: boolean) => void;
     showSuccess: (message: string) => void;
@@ -29,6 +32,7 @@ interface NotificationContextValue {
     showInfo: (message: string) => void;
     removeNotification: (id: string) => void;
     clearAll: () => void;
+    refreshSystemNotifications: () => Promise<void>;
 }
 
 const NotificationContext = createContext<NotificationContextValue | undefined>(undefined);
@@ -66,6 +70,29 @@ const ERROR_SUGGESTIONS: Record<string, string> = {
 
 export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [notifications, setNotifications] = useState<Notification[]>([]);
+    const [systemNotifications, setSystemNotifications] = useState<SystemNotification[]>([]);
+
+    const fetchNotifications = useCallback(async () => {
+        try {
+            // الاستيراد الديناميكي لتجنب مشاكل دائرية أثناء التحميل الأولي
+            const { NotificationService } = await import('../../services/notificationService');
+            // افترضنا هنا وجود دالة لجلب التنبيهات، قد تحتاج لمعاملات
+            const data = await NotificationService.getUserNotifications(20);
+            setSystemNotifications(data);
+        } catch (error: any) {
+            // Silently handle errors - don't spam console when Supabase has issues
+            // Only log in development if needed for debugging
+            if (process.env.NODE_ENV === 'development' && error?.name !== 'AbortError') {
+                // console.debug('Notification fetch skipped:', error?.message);
+            }
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchNotifications();
+        const interval = setInterval(fetchNotifications, 60000); // 1 minute
+        return () => clearInterval(interval);
+    }, [fetchNotifications]);
 
     const removeNotification = useCallback((id: string) => {
         setNotifications(prev => prev.filter(n => n.id !== id));
@@ -152,13 +179,15 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     return (
         <NotificationContext.Provider value={{
             notifications,
+            systemNotifications,
             showNotification,
             showError,
             showSuccess,
             showWarning,
             showInfo,
             removeNotification,
-            clearAll
+            clearAll,
+            refreshSystemNotifications: fetchNotifications
         }}>
             {children}
         </NotificationContext.Provider>

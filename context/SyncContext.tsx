@@ -1,10 +1,10 @@
 /**
  * Sync Context - سياق المزامنة
- * إدارة العمل بدون اتصال والمزامنة
+ * التخزين السحابي المباشر فقط - بدون قائمة انتظار
  */
 
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { SyncStats, SyncSettings, SyncQueueItem } from '../types/sync';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { SyncStats, SyncSettings } from '../types/sync';
 import { SyncService } from '../services/syncService';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 
@@ -19,79 +19,20 @@ interface SyncContextValue {
     settings: SyncSettings;
 
     // الإجراءات
-    addToQueue: (params: {
-        operation: 'create' | 'update' | 'delete';
-        entityType: string;
-        entityId: string;
-        data: Record<string, unknown>;
-        userId: string;
-        branchId: string;
-    }) => SyncQueueItem;
-
-    syncNow: () => Promise<void>;
     updateSettings: (settings: Partial<SyncSettings>) => void;
-    getPendingItems: () => SyncQueueItem[];
 }
 
 const SyncContext = createContext<SyncContextValue | undefined>(undefined);
 
 export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const { isOnline, updateLastSync } = useOnlineStatus();
+    const { isOnline } = useOnlineStatus();
     const [stats, setStats] = useState<SyncStats>(SyncService.getStats());
     const [settings, setSettings] = useState<SyncSettings>(SyncService.getSettings());
-    const syncIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     // تحديث الإحصائيات
     const refreshStats = useCallback(() => {
         setStats(SyncService.getStats());
     }, []);
-
-    /**
-     * إضافة عملية للقائمة
-     */
-    const addToQueue = useCallback((params: {
-        operation: 'create' | 'update' | 'delete';
-        entityType: string;
-        entityId: string;
-        data: Record<string, unknown>;
-        userId: string;
-        branchId: string;
-    }): SyncQueueItem => {
-        const item = SyncService.addToQueue(params);
-        refreshStats();
-        return item;
-    }, [refreshStats]);
-
-    /**
-     * المزامنة الآن
-     * (سيتم تنفيذها بالكامل مع Supabase)
-     */
-    const syncNow = useCallback(async () => {
-        if (!isOnline) {
-            console.log('Offline - cannot sync');
-            return;
-        }
-
-        const pending = SyncService.getPending();
-        if (pending.length === 0) {
-            console.log('No pending items to sync');
-            return;
-        }
-
-        console.log(`Syncing ${pending.length} items...`);
-
-        // TODO: إرسال البيانات لـ Supabase
-        // حالياً نحاكي المزامنة الناجحة
-        for (const item of pending) {
-            SyncService.updateItemStatus(item.id, 'synced');
-        }
-
-        SyncService.updateLastSync();
-        updateLastSync();
-        refreshStats();
-
-        console.log('Sync completed');
-    }, [isOnline, refreshStats, updateLastSync]);
 
     /**
      * تحديث الإعدادات
@@ -101,35 +42,15 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setSettings(SyncService.getSettings());
     }, []);
 
-    /**
-     * الحصول على العناصر المعلقة
-     */
-    const getPendingItems = useCallback(() => {
-        return SyncService.getPending();
-    }, []);
-
-    // المزامنة التلقائية عند الاتصال
+    // تحديث وقت آخر فحص عند تغيير حالة الاتصال
     useEffect(() => {
-        if (isOnline && settings.autoSync) {
-            // مزامنة فورية عند العودة للاتصال
-            syncNow();
-
-            // المزامنة الدورية
-            syncIntervalRef.current = setInterval(() => {
-                syncNow();
-            }, settings.syncIntervalMs);
-        }
-
-        return () => {
-            if (syncIntervalRef.current) {
-                clearInterval(syncIntervalRef.current);
-            }
-        };
-    }, [isOnline, settings.autoSync, settings.syncIntervalMs, syncNow]);
+        SyncService.updateLastCheck();
+        refreshStats();
+    }, [isOnline, refreshStats]);
 
     // تحديث الإحصائيات دورياً
     useEffect(() => {
-        const interval = setInterval(refreshStats, 5000);
+        const interval = setInterval(refreshStats, 10000); // كل 10 ثواني
         return () => clearInterval(interval);
     }, [refreshStats]);
 
@@ -137,10 +58,7 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isOnline,
         stats,
         settings,
-        addToQueue,
-        syncNow,
-        updateSettings,
-        getPendingItems
+        updateSettings
     };
 
     return <SyncContext.Provider value={value}>{children}</SyncContext.Provider>;
@@ -151,3 +69,4 @@ export const useSync = () => {
     if (!context) throw new Error('useSync must be used within SyncProvider');
     return context;
 };
+

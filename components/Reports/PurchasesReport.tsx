@@ -7,7 +7,7 @@ const PurchasesReport: React.FC = () => {
 
     const reportData = useMemo(() => {
         return purchases.flatMap(purchase =>
-            purchase.items.map(item => ({
+            purchase.items.map((item: any) => ({
                 invoiceNumber: purchase.invoiceNumber,
                 referenceNumber: purchase.referenceNumber,
                 date: purchase.date,

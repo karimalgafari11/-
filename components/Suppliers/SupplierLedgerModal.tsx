@@ -16,10 +16,10 @@ const SupplierLedgerModal: React.FC<SupplierLedgerModalProps> = ({ isOpen, onClo
   if (!supplier) return null;
 
   // محاكاة حركات الحساب للمورد (في الواقع سيتم فلترتها من سجل المعاملات)
-  const ledgerData = transactions.filter(t => t.account === 'موردين' && t.description.includes(supplier.companyName)) || [];
+  const ledgerData = transactions.filter(t => t.account === 'موردين' && t.description.includes(supplier.companyName || supplier.name || '')) || [];
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={`كشف حساب: ${supplier.companyName}`} size="xl">
+    <Modal isOpen={isOpen} onClose={onClose} title={`كشف حساب: ${supplier.companyName || supplier.name}`} size="xl">
       <div className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="p-4 bg-slate-900 text-white border border-slate-800">
@@ -68,8 +68,8 @@ const SupplierLedgerModal: React.FC<SupplierLedgerModalProps> = ({ isOpen, onClo
         </div>
 
         <div className="flex gap-3 pt-4">
-          <Button variant="outline" icon={<Printer size={16}/>}>طباعة الكشف</Button>
-          <Button variant="outline" icon={<Download size={16}/>}>تصدير PDF</Button>
+          <Button variant="outline" icon={<Printer size={16} />}>طباعة الكشف</Button>
+          <Button variant="outline" icon={<Download size={16} />}>تصدير PDF</Button>
           <div className="flex-1"></div>
           <Button variant="ghost" onClick={onClose}>إغلاق النافذة</Button>
         </div>

@@ -1,377 +1,277 @@
 /**
  * Sales Service - خدمة المبيعات
- * التعامل مع جداول sales و sale_items
+ * متوافق مع Supabase Schema
  */
 
-// Supabase disabled - working with local storage only
-const isSupabaseConfigured = () => false;
-// When Supabase is disabled, return null with proper type assertion
-const getSupabaseClient = (): any => null;
-import { SafeStorage } from '../utils/storage';
+import { supabase } from '../lib/supabaseClient';
 import { ActivityLogger } from './activityLogger';
-import { SyncService } from './syncService';
-import type { Sale, SaleItem, InsertType, UpdateType } from '../types/database';
-
-const SALES_KEY = 'alzhra_sales';
-const SALE_ITEMS_KEY = 'alzhra_sale_items';
+import type { Sale, SaleItem, InsertType } from '../types/supabase-types';
 
 export interface SaleWithItems extends Sale {
     items: SaleItem[];
 }
 
 export interface CreateSaleData {
-    sale: InsertType<Sale>;
-    items: InsertType<SaleItem>[];
+    sale: Omit<InsertType<Sale>, 'company_id' | 'items'>;
+    items: SaleItem[];
 }
 
 export const SalesService = {
     /**
      * جلب جميع المبيعات
      */
-    async getSales(organizationId: string, branchId?: string): Promise<Sale[]> {
-        if (isSupabaseConfigured() && navigator.onLine) {
-            const client = getSupabaseClient();
-            if (client) {
-                try {
-                    let query = client
-                        .from('sales')
-                        .select('*')
-                        .eq('organization_id', organizationId)
-                        .is('deleted_at', null)
-                        .order('invoice_date', { ascending: false });
+    async getSales(companyId: string): Promise<Sale[]> {
+        try {
+            const { data, error } = await supabase
+                .from('sales')
+                .select('*')
+                .eq('company_id', companyId)
+                .order('created_at', { ascending: false });
 
-                    if (branchId) {
-                        query = query.eq('branch_id', branchId);
-                    }
-
-                    const { data, error } = await query;
-
-                    if (!error && data) {
-                        SafeStorage.set(SALES_KEY, data);
-                        return data;
-                    }
-                } catch (err) {
-                    console.error('Error fetching sales:', err);
-                }
+            if (error) {
+                console.error('❌ خطأ في جلب المبيعات:', error);
+                return [];
             }
-        }
 
-        const local = SafeStorage.get<Sale[]>(SALES_KEY, []);
-        return local.filter(s =>
-            s.organization_id === organizationId &&
-            !s.deleted_at &&
-            (!branchId || s.branch_id === branchId)
-        );
+            return data || [];
+        } catch (err) {
+            console.error('❌ استثناء في جلب المبيعات:', err);
+            return [];
+        }
     },
 
     /**
-     * جلب فاتورة مع السطور
+     * جلب مبيعات عميل
      */
-    async getSaleWithItems(saleId: string): Promise<SaleWithItems | null> {
-        let sale: Sale | null = null;
-        let items: SaleItem[] = [];
+    async getSalesByCustomer(companyId: string, customerId: string): Promise<Sale[]> {
+        try {
+            const { data, error } = await supabase
+                .from('sales')
+                .select('*')
+                .eq('company_id', companyId)
+                .eq('customer_id', customerId)
+                .order('created_at', { ascending: false });
 
-        if (isSupabaseConfigured() && navigator.onLine) {
-            const client = getSupabaseClient();
-            if (client) {
-                const { data: saleData } = await client
-                    .from('sales')
-                    .select('*')
-                    .eq('id', saleId)
-                    .single();
-
-                if (saleData) {
-                    sale = saleData;
-
-                    const { data: itemsData } = await client
-                        .from('sale_items')
-                        .select('*')
-                        .eq('sale_id', saleId)
-                        .order('line_order');
-
-                    items = itemsData || [];
-                }
-            }
+            if (error) throw error;
+            return data || [];
+        } catch (err) {
+            console.error('❌ خطأ في جلب مبيعات العميل:', err);
+            return [];
         }
-
-        if (!sale) {
-            const localSales = SafeStorage.get<Sale[]>(SALES_KEY, []);
-            sale = localSales.find(s => s.id === saleId) || null;
-
-            if (sale) {
-                const localItems = SafeStorage.get<SaleItem[]>(SALE_ITEMS_KEY, []);
-                items = localItems.filter(i => i.sale_id === saleId);
-            }
-        }
-
-        return sale ? { ...sale, items } : null;
     },
 
     /**
-     * إنشاء فاتورة مبيعات جديدة
+     * جلب فاتورة واحدة
+     */
+    async getSaleById(id: string): Promise<Sale | null> {
+        try {
+            const { data, error } = await supabase
+                .from('sales')
+                .select('*')
+                .eq('id', id)
+                .single();
+
+            if (error) throw error;
+            return data;
+        } catch (err) {
+            console.error('❌ خطأ في جلب الفاتورة:', err);
+            return null;
+        }
+    },
+
+    /**
+     * إنشاء فاتورة مبيعات
      */
     async createSale(
         data: CreateSaleData,
-        context: { userId: string; branchId: string; userName?: string; organizationId: string }
-    ): Promise<SaleWithItems> {
+        context: { userId: string; companyId: string; userName?: string }
+    ): Promise<Sale | null> {
         const now = new Date().toISOString();
-
-        // إنشاء الفاتورة
-        const newSale: Sale = {
-            ...data.sale,
-            id: data.sale.id || `sale_${Date.now()}`,
-            organization_id: context.organizationId,
-            branch_id: context.branchId,
-            created_by: context.userId,
-            status: data.sale.status || 'draft',
-            created_at: now,
-            updated_at: now,
-        } as Sale;
 
         // حساب المجاميع
         let subtotal = 0;
         let taxTotal = 0;
 
-        // إنشاء السطور
-        const newItems: SaleItem[] = data.items.map((item, index) => {
-            const lineTotal = item.quantity * item.unit_price - (item.discount_amount || 0);
-            const taxAmount = lineTotal * ((item.tax_rate || 15) / 100);
-
+        const items: SaleItem[] = data.items.map(item => {
+            const lineTotal = item.quantity * item.unit_price - (item.discount || 0);
+            const taxAmount = lineTotal * 0.15; // 15% ضريبة
             subtotal += lineTotal;
             taxTotal += taxAmount;
 
             return {
                 ...item,
-                id: item.id || `si_${Date.now()}_${index}`,
-                sale_id: newSale.id,
-                line_total: lineTotal,
-                tax_amount: taxAmount,
-                line_order: index,
-                created_at: now,
-            } as SaleItem;
+                total: lineTotal + taxAmount
+            };
         });
 
-        // تحديث المجاميع في الفاتورة
-        newSale.subtotal = subtotal;
-        newSale.tax_amount = taxTotal;
-        newSale.total_amount = subtotal + taxTotal - (newSale.discount_amount || 0);
+        const newSale: Sale = {
+            id: `sale_${Date.now()}`,
+            company_id: context.companyId,
+            user_id: context.userId,
+            customer_id: data.sale.customer_id,
+            invoice_number: data.sale.invoice_number || await this.generateInvoiceNumber(context.companyId),
+            total: subtotal,
+            discount: data.sale.discount || 0,
+            tax: taxTotal,
+            net_total: subtotal + taxTotal - (data.sale.discount || 0),
+            paid: data.sale.paid || 0,
+            payment_method: data.sale.payment_method || 'cash',
+            status: data.sale.status || 'completed',
+            notes: data.sale.notes,
+            items: items,
+            created_at: now,
+            updated_at: now
+        };
 
-        // حفظ محلياً
-        const localSales = SafeStorage.get<Sale[]>(SALES_KEY, []);
-        localSales.push(newSale);
-        SafeStorage.set(SALES_KEY, localSales);
+        try {
+            const { data: result, error } = await supabase
+                .from('sales')
+                .insert(newSale)
+                .select()
+                .single();
 
-        const localItems = SafeStorage.get<SaleItem[]>(SALE_ITEMS_KEY, []);
-        localItems.push(...newItems);
-        SafeStorage.set(SALE_ITEMS_KEY, localItems);
+            if (error) throw error;
 
-        // تسجيل النشاط
-        ActivityLogger.log({
-            action: 'create',
-            entityType: 'sale',
-            entityId: newSale.id,
-            entityName: `فاتورة ${newSale.invoice_number}`,
-            userId: context.userId,
-            userName: context.userName || 'مستخدم',
-            organizationId: context.organizationId,
-            branchId: context.branchId,
-            newData: { sale: newSale, items: newItems } as unknown as Record<string, unknown>
-        });
-
-        // المزامنة
-        if (isSupabaseConfigured() && navigator.onLine) {
-            const client = getSupabaseClient();
-            if (client) {
-                try {
-                    await client.from('sales').insert(newSale);
-                    await client.from('sale_items').insert(newItems);
-                } catch (err) {
-                    console.error('Error inserting sale:', err);
-                    SyncService.addToQueue({
-                        operation: 'create',
-                        entityType: 'sales',
-                        entityId: newSale.id,
-                        data: { sale: newSale, items: newItems } as unknown as Record<string, unknown>,
-                        userId: context.userId,
-                        branchId: context.branchId
-                    });
-                }
-            }
-        } else {
-            SyncService.addToQueue({
-                operation: 'create',
-                entityType: 'sales',
-                entityId: newSale.id,
-                data: { sale: newSale, items: newItems } as unknown as Record<string, unknown>,
+            // تسجيل النشاط
+            ActivityLogger.log({
+                action: 'create',
+                entityType: 'sale',
+                entityId: result.id,
+                entityName: `فاتورة ${result.invoice_number}`,
                 userId: context.userId,
-                branchId: context.branchId
+                userName: context.userName || 'مستخدم',
+                organizationId: context.companyId,
+                branchId: '',
+                newData: result as unknown as Record<string, unknown>
             });
+
+            console.log('✅ تم إنشاء الفاتورة:', result.id);
+            return result;
+        } catch (err) {
+            console.error('❌ خطأ في إنشاء الفاتورة:', err);
+            return null;
         }
-
-        return { ...newSale, items: newItems };
     },
 
     /**
-     * تأكيد فاتورة (تغيير الحالة)
+     * تحديث فاتورة
      */
-    async confirmSale(
-        saleId: string,
-        context: { userId: string; branchId: string; userName?: string }
-    ): Promise<boolean> {
-        return this.updateSaleStatus(saleId, 'confirmed', context);
-    },
+    async updateSale(id: string, updates: Partial<Sale>): Promise<Sale | null> {
+        try {
+            const { data, error } = await supabase
+                .from('sales')
+                .update({
+                    ...updates,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', id)
+                .select()
+                .single();
 
-    /**
-     * إكمال فاتورة
-     */
-    async completeSale(
-        saleId: string,
-        context: { userId: string; branchId: string; userName?: string }
-    ): Promise<boolean> {
-        return this.updateSaleStatus(saleId, 'completed', context);
-    },
-
-    /**
-     * تحديث حالة الفاتورة
-     */
-    async updateSaleStatus(
-        saleId: string,
-        status: Sale['status'],
-        context: { userId: string; branchId: string; userName?: string }
-    ): Promise<boolean> {
-        const localSales = SafeStorage.get<Sale[]>(SALES_KEY, []);
-        const index = localSales.findIndex(s => s.id === saleId);
-
-        if (index === -1) return false;
-
-        const oldStatus = localSales[index].status;
-        localSales[index].status = status;
-        localSales[index].updated_at = new Date().toISOString();
-        SafeStorage.set(SALES_KEY, localSales);
-
-        ActivityLogger.log({
-            action: 'update',
-            entityType: 'sale',
-            entityId: saleId,
-            entityName: `فاتورة ${localSales[index].invoice_number}`,
-            userId: context.userId,
-            userName: context.userName || 'مستخدم',
-            organizationId: localSales[index].organization_id,
-            branchId: context.branchId,
-            oldData: { status: oldStatus },
-            newData: { status }
-        });
-
-        if (isSupabaseConfigured() && navigator.onLine) {
-            const client = getSupabaseClient();
-            if (client) {
-                try {
-                    await client.from('sales').update({ status }).eq('id', saleId);
-                } catch (err) {
-                    console.error('Error updating sale status:', err);
-                }
-            }
+            if (error) throw error;
+            console.log('✅ تم تحديث الفاتورة:', id);
+            return data;
+        } catch (err) {
+            console.error('❌ خطأ في تحديث الفاتورة:', err);
+            return null;
         }
-
-        return true;
     },
 
     /**
-     * تسجيل دفعة على الفاتورة
+     * تسجيل دفعة
      */
-    async recordPayment(
-        saleId: string,
-        amount: number,
-        context: { userId: string; branchId: string; userName?: string }
-    ): Promise<boolean> {
-        const localSales = SafeStorage.get<Sale[]>(SALES_KEY, []);
-        const index = localSales.findIndex(s => s.id === saleId);
+    async recordPayment(id: string, amount: number): Promise<boolean> {
+        try {
+            const sale = await this.getSaleById(id);
+            if (!sale) return false;
 
-        if (index === -1) return false;
+            const newPaid = (sale.paid || 0) + amount;
+            const newStatus = newPaid >= sale.net_total ? 'paid' : 'partial';
 
-        const sale = localSales[index];
-        const newPaidAmount = (sale.paid_amount || 0) + amount;
+            const { error } = await supabase
+                .from('sales')
+                .update({
+                    paid: newPaid,
+                    status: newStatus,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', id);
 
-        localSales[index].paid_amount = newPaidAmount;
-        localSales[index].updated_at = new Date().toISOString();
-
-        // تحديث الحالة إذا تم الدفع الكامل
-        if (newPaidAmount >= sale.total_amount && sale.status === 'confirmed') {
-            localSales[index].status = 'completed';
+            if (error) throw error;
+            console.log('✅ تم تسجيل دفعة:', amount);
+            return true;
+        } catch (err) {
+            console.error('❌ خطأ في تسجيل الدفعة:', err);
+            return false;
         }
+    },
 
-        SafeStorage.set(SALES_KEY, localSales);
+    /**
+     * إلغاء فاتورة
+     */
+    async cancelSale(id: string): Promise<boolean> {
+        try {
+            const { error } = await supabase
+                .from('sales')
+                .update({ status: 'cancelled' })
+                .eq('id', id);
 
-        ActivityLogger.log({
-            action: 'payment',
-            entityType: 'sale',
-            entityId: saleId,
-            entityName: `فاتورة ${sale.invoice_number}`,
-            userId: context.userId,
-            userName: context.userName || 'مستخدم',
-            organizationId: sale.organization_id,
-            branchId: context.branchId,
-            newData: { payment_amount: amount, new_paid_amount: newPaidAmount }
-        });
-
-        if (isSupabaseConfigured() && navigator.onLine) {
-            const client = getSupabaseClient();
-            if (client) {
-                try {
-                    await client.from('sales').update({
-                        paid_amount: newPaidAmount,
-                        status: localSales[index].status
-                    }).eq('id', saleId);
-                } catch (err) {
-                    console.error('Error recording payment:', err);
-                }
-            }
+            if (error) throw error;
+            console.log('✅ تم إلغاء الفاتورة:', id);
+            return true;
+        } catch (err) {
+            console.error('❌ خطأ في إلغاء الفاتورة:', err);
+            return false;
         }
-
-        return true;
     },
 
     /**
-     * توليد رقم فاتورة جديد
+     * توليد رقم فاتورة
      */
-    generateInvoiceNumber(branchCode: string): string {
-        const date = new Date();
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
-        return `INV-${branchCode}-${year}${month}-${random}`;
+    async generateInvoiceNumber(companyId: string): Promise<string> {
+        const year = new Date().getFullYear();
+        const { count } = await supabase
+            .from('sales')
+            .select('*', { count: 'exact', head: true })
+            .eq('company_id', companyId);
+
+        const number = ((count || 0) + 1).toString().padStart(5, '0');
+        return `INV-${year}-${number}`;
     },
 
     /**
-     * جلب إحصائيات المبيعات
+     * إحصائيات المبيعات
      */
-    async getSalesStats(
-        organizationId: string,
-        branchId?: string,
-        startDate?: string,
-        endDate?: string
-    ): Promise<{
+    async getStats(companyId: string): Promise<{
         totalSales: number;
         totalAmount: number;
-        paidAmount: number;
-        pendingAmount: number;
+        totalPaid: number;
+        pending: number;
     }> {
-        let sales = await this.getSales(organizationId, branchId);
+        try {
+            const { data, error } = await supabase
+                .from('sales')
+                .select('net_total, paid, status')
+                .eq('company_id', companyId);
 
-        if (startDate) {
-            sales = sales.filter(s => s.invoice_date >= startDate);
+            if (error) throw error;
+
+            return (data || []).reduce((acc, s) => ({
+                totalSales: acc.totalSales + 1,
+                totalAmount: acc.totalAmount + (s.net_total || 0),
+                totalPaid: acc.totalPaid + (s.paid || 0),
+                pending: acc.pending + (s.status === 'pending' ? 1 : 0)
+            }), {
+                totalSales: 0,
+                totalAmount: 0,
+                totalPaid: 0,
+                pending: 0
+            });
+        } catch (err) {
+            console.error('❌ خطأ في الإحصائيات:', err);
+            return { totalSales: 0, totalAmount: 0, totalPaid: 0, pending: 0 };
         }
-        if (endDate) {
-            sales = sales.filter(s => s.invoice_date <= endDate);
-        }
-
-        const completedSales = sales.filter(s => s.status === 'completed' || s.status === 'confirmed');
-
-        return {
-            totalSales: completedSales.length,
-            totalAmount: completedSales.reduce((sum, s) => sum + s.total_amount, 0),
-            paidAmount: completedSales.reduce((sum, s) => sum + (s.paid_amount || 0), 0),
-            pendingAmount: completedSales.reduce((sum, s) => sum + (s.total_amount - (s.paid_amount || 0)), 0)
-        };
     }
 };
+
+export default SalesService;

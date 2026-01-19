@@ -1,5 +1,5 @@
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { useFinance } from '../context/FinanceContext';
 import { useInventory } from '../context/InventoryContext';
@@ -231,6 +231,13 @@ const Dashboard: React.FC = () => {
 
   const isDark = theme === 'dark';
 
+  // تأخير عرض الرسوم البيانية حتى يكتمل التخطيط
+  const [chartsReady, setChartsReady] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setChartsReady(true), 100);
+    return () => clearTimeout(timer);
+  }, []);
+
   return (
     <div className={`min-h-screen ${isDark ? 'bg-slate-950' : 'bg-slate-50'} space-y-4 sm:space-y-6 p-1 animate-in fade-in duration-700`}>
 
@@ -302,38 +309,40 @@ const Dashboard: React.FC = () => {
               </div>
             </div>
             <div className="h-[200px] sm:h-[300px] mobile-chart" style={{ minWidth: 100, minHeight: 150 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={chartData}>
-                  <defs>
-                    <linearGradient id="gradCyan" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#06b6d4" stopOpacity={0} />
-                    </linearGradient>
-                    <linearGradient id="gradPurple" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.2} />
-                      <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
-                    </linearGradient>
-                    <linearGradient id="gradGreen" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.2} />
-                      <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#1e293b' : '#f1f5f9'} />
-                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: isDark ? '#64748b' : '#94a3b8', fontSize: 10 }} />
-                  <YAxis axisLine={false} tickLine={false} tick={{ fill: isDark ? '#64748b' : '#94a3b8', fontSize: 10 }} hide />
-                  <Tooltip
-                    contentStyle={{
-                      borderRadius: '12px',
-                      border: 'none',
-                      boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)',
-                      background: isDark ? '#0f172a' : 'white',
-                      color: isDark ? '#e2e8f0' : '#334155'
-                    }}
-                  />
-                  <Area type="monotone" dataKey="مبيعات" stroke="#06b6d4" strokeWidth={2} fill="url(#gradCyan)" />
-                  <Area type="monotone" dataKey="مشتريات" stroke="#8b5cf6" strokeWidth={2} fill="url(#gradPurple)" />
-                </AreaChart>
-              </ResponsiveContainer>
+              {chartsReady && (
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={chartData}>
+                    <defs>
+                      <linearGradient id="gradCyan" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#06b6d4" stopOpacity={0} />
+                      </linearGradient>
+                      <linearGradient id="gradPurple" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.2} />
+                        <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
+                      </linearGradient>
+                      <linearGradient id="gradGreen" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.2} />
+                        <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#1e293b' : '#f1f5f9'} />
+                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: isDark ? '#64748b' : '#94a3b8', fontSize: 10 }} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fill: isDark ? '#64748b' : '#94a3b8', fontSize: 10 }} hide />
+                    <Tooltip
+                      contentStyle={{
+                        borderRadius: '12px',
+                        border: 'none',
+                        boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)',
+                        background: isDark ? '#0f172a' : 'white',
+                        color: isDark ? '#e2e8f0' : '#334155'
+                      }}
+                    />
+                    <Area type="monotone" dataKey="مبيعات" stroke="#06b6d4" strokeWidth={2} fill="url(#gradCyan)" />
+                    <Area type="monotone" dataKey="مشتريات" stroke="#8b5cf6" strokeWidth={2} fill="url(#gradPurple)" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              )}
             </div>
           </FuturisticCard>
         )}
@@ -343,24 +352,26 @@ const Dashboard: React.FC = () => {
           <h3 className={`font-black mb-2 ${isDark ? 'text-white' : 'text-slate-800'}`}>🔧 توزيع قطع الغيار</h3>
           <p className={`text-xs mb-4 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>حسب الفئة</p>
           <div className="h-[200px]" style={{ minWidth: 100, minHeight: 100 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={categoryData.length > 0 ? categoryData : [{ name: 'لا توجد بيانات', value: 1, fill: '#64748b' }]}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={50}
-                  outerRadius={80}
-                  paddingAngle={5}
-                  dataKey="value"
-                >
-                  {categoryData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.fill} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
+            {chartsReady && (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={categoryData.length > 0 ? categoryData : [{ name: 'لا توجد بيانات', value: 1, fill: '#64748b' }]}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={50}
+                    outerRadius={80}
+                    paddingAngle={5}
+                    dataKey="value"
+                  >
+                    {categoryData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.fill} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
           </div>
           <div className="grid grid-cols-2 gap-2 mt-4">
             {categoryData.slice(0, 4).map((cat, i) => (
@@ -378,19 +389,21 @@ const Dashboard: React.FC = () => {
         <FuturisticCard glow isDark={isDark}>
           <h3 className={`font-black mb-4 ${isDark ? 'text-white' : 'text-slate-800'}`}>🏆 أفضل القطع مبيعاً</h3>
           <div className="h-[250px]" style={{ minWidth: 100, minHeight: 150 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={topProducts} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#1e293b' : '#f1f5f9'} />
-                <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill: isDark ? '#64748b' : '#94a3b8', fontSize: 10 }} />
-                <YAxis type="category" dataKey="name" axisLine={false} tickLine={false} tick={{ fill: isDark ? '#94a3b8' : '#64748b', fontSize: 10 }} width={120} />
-                <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', background: isDark ? '#0f172a' : 'white' }} />
-                <Bar dataKey="مبيعات" radius={[0, 8, 8, 0]}>
-                  {topProducts.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.fill} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            {chartsReady && (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={topProducts} layout="vertical">
+                  <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#1e293b' : '#f1f5f9'} />
+                  <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill: isDark ? '#64748b' : '#94a3b8', fontSize: 10 }} />
+                  <YAxis type="category" dataKey="name" axisLine={false} tickLine={false} tick={{ fill: isDark ? '#94a3b8' : '#64748b', fontSize: 10 }} width={120} />
+                  <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', background: isDark ? '#0f172a' : 'white' }} />
+                  <Bar dataKey="مبيعات" radius={[0, 8, 8, 0]}>
+                    {topProducts.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.fill} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </FuturisticCard>
 

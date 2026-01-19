@@ -4,7 +4,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
 import { useSettings } from '../../context/SettingsContext';
 
-import { Menu, ChevronRight, Moon, Sun, Globe, Bell, Sparkles, LogOut, User } from 'lucide-react';
+import { Menu, ChevronRight, Moon, Sun, Globe, Bell, Sparkles, LogOut, User, Search } from 'lucide-react';
 import GlobalSearch from '../Common/GlobalSearch';
 
 interface HeaderProps {
@@ -98,20 +98,20 @@ const Header: React.FC<HeaderProps> = ({ onOpenMenu }) => {
 
         {/* Global Search Bar - Responsive */}
         <div className={`
-          ${showMobileSearch ? 'absolute inset-0 z-50 px-4 bg-white dark:bg-slate-900 flex items-center' : 'hidden'} 
+          ${showMobileSearch ? 'fixed inset-0 z-50 px-4 py-3 bg-white dark:bg-slate-900 flex flex-col' : 'hidden'} 
           md:static md:flex md:flex-1 md:px-6 md:justify-center md:bg-transparent md:z-auto
         `}>
           <div className="w-full max-w-lg flex items-center gap-2">
             {showMobileSearch && (
               <button
                 onClick={() => setShowMobileSearch(false)}
-                className="p-2 md:hidden"
+                className="p-2 md:hidden text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
               >
                 <ChevronRight size={20} className={language === 'ar' ? '' : 'rotate-180'} />
               </button>
             )}
             <div className="flex-1">
-              <GlobalSearch />
+              <GlobalSearch isMobile={showMobileSearch} onClose={() => setShowMobileSearch(false)} />
             </div>
           </div>
         </div>
@@ -129,7 +129,7 @@ const Header: React.FC<HeaderProps> = ({ onOpenMenu }) => {
             }
           `}
         >
-          <Sparkles size={18} className="rotate-90" /> {/* أيقونة بحث بديلة أو استخدم Search icon */}
+          <Search size={18} />
         </button>
 
         {/* زر تغيير الوضع */}

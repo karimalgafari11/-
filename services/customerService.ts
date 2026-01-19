@@ -1,256 +1,170 @@
 /**
  * Customer Service - خدمة العملاء
- * التعامل مع جدول customers في Supabase
+ * التعامل مع جدول customers في Supabase مباشرة
+ * متوافق مع Supabase Schema
  */
 
-// Supabase disabled - working with local storage only
-const isSupabaseConfigured = () => false;
-const getSupabaseClient = (): any => null;
-import { SafeStorage } from '../utils/storage';
-import { ActivityLogger } from './activityLogger';
-import { SyncService } from './syncService';
-import type { Customer, InsertType, UpdateType } from '../types/database';
-
-const CUSTOMERS_KEY = 'alzhra_customers';
+import { supabase } from '../lib/supabaseClient';
+import type { Customer, InsertType } from '../types/supabase-types';
 
 export const CustomerService = {
     /**
      * جلب جميع العملاء
      */
-    async getCustomers(organizationId: string): Promise<Customer[]> {
-        if (isSupabaseConfigured() && navigator.onLine) {
-            const client = getSupabaseClient();
-            if (client) {
-                try {
-                    const { data, error } = await client
-                        .from('customers')
-                        .select('*')
-                        .eq('organization_id', organizationId)
-                        .is('deleted_at', null)
-                        .order('name');
+    async getCustomers(companyId: string): Promise<Customer[]> {
+        try {
+            const { data, error } = await supabase
+                .from('customers')
+                .select('*')
+                .eq('company_id', companyId)
+                .is('is_active', true)
+                .order('name');
 
-                    if (!error && data) {
-                        SafeStorage.set(CUSTOMERS_KEY, data);
-                        return data;
-                    }
-                } catch (err) {
-                    console.error('Error fetching customers:', err);
-                }
+            if (error) {
+                console.error('❌ خطأ في جلب العملاء:', error);
+                return [];
             }
-        }
 
-        const local = SafeStorage.get<Customer[]>(CUSTOMERS_KEY, []);
-        return local.filter(c => c.organization_id === organizationId && !c.deleted_at);
+            return data || [];
+        } catch (err) {
+            console.error('❌ استثناء في جلب العملاء:', err);
+            return [];
+        }
     },
 
     /**
      * جلب عميل واحد
      */
     async getCustomer(id: string): Promise<Customer | null> {
-        if (isSupabaseConfigured() && navigator.onLine) {
-            const client = getSupabaseClient();
-            if (client) {
-                const { data } = await client
-                    .from('customers')
-                    .select('*')
-                    .eq('id', id)
-                    .single();
-                return data;
-            }
-        }
+        try {
+            const { data, error } = await supabase
+                .from('customers')
+                .select('*')
+                .eq('id', id)
+                .single();
 
-        const local = SafeStorage.get<Customer[]>(CUSTOMERS_KEY, []);
-        return local.find(c => c.id === id) || null;
+            if (error) {
+                console.error('❌ خطأ في جلب العميل:', error);
+                return null;
+            }
+
+            return data;
+        } catch (err) {
+            console.error('❌ استثناء في جلب العميل:', err);
+            return null;
+        }
     },
 
     /**
      * إنشاء عميل جديد
      */
     async createCustomer(
-        customer: InsertType<Customer>,
-        context: { userId: string; branchId: string; userName?: string }
-    ): Promise<Customer> {
-        const now = new Date().toISOString();
-        const newCustomer: Customer = {
-            ...customer,
-            id: customer.id || `cust_${Date.now()}`,
-            created_at: now,
-            updated_at: now,
-        } as Customer;
-
-        // حفظ محلياً
-        const local = SafeStorage.get<Customer[]>(CUSTOMERS_KEY, []);
-        local.push(newCustomer);
-        SafeStorage.set(CUSTOMERS_KEY, local);
-
-        // تسجيل النشاط
-        ActivityLogger.log({
-            action: 'create',
-            entityType: 'customer',
-            entityId: newCustomer.id,
-            entityName: newCustomer.name,
-            userId: context.userId,
-            userName: context.userName || 'مستخدم',
-            organizationId: newCustomer.organization_id,
-            branchId: context.branchId,
-            newData: newCustomer as unknown as Record<string, unknown>
-        });
-
-        // المزامنة
-        if (isSupabaseConfigured() && navigator.onLine) {
-            const client = getSupabaseClient();
-            if (client) {
-                try {
-                    await client.from('customers').insert(newCustomer);
-                } catch (err) {
-                    console.error('Error inserting customer:', err);
-                    SyncService.addToQueue({
-                        operation: 'create',
-                        entityType: 'customers',
-                        entityId: newCustomer.id,
-                        data: newCustomer as unknown as Record<string, unknown>,
-                        userId: context.userId,
-                        branchId: context.branchId
-                    });
-                }
-            }
-        } else {
-            SyncService.addToQueue({
-                operation: 'create',
-                entityType: 'customers',
-                entityId: newCustomer.id,
-                data: newCustomer as unknown as Record<string, unknown>,
-                userId: context.userId,
-                branchId: context.branchId
-            });
-        }
-
-        return newCustomer;
-    },
-
-    /**
-     * تحديث عميل
-     */
-    async updateCustomer(
-        id: string,
-        updates: UpdateType<Customer>,
-        context: { userId: string; branchId: string; userName?: string }
+        companyId: string,
+        customer: Omit<InsertType<Customer>, 'company_id'>
     ): Promise<Customer | null> {
-        const local = SafeStorage.get<Customer[]>(CUSTOMERS_KEY, []);
-        const index = local.findIndex(c => c.id === id);
+        console.log('🚀 CustomerService.createCustomer called', { companyId, customer });
+        try {
+            const payload = {
+                ...customer,
+                company_id: companyId,
+                is_active: true
+            };
+            console.log('📦 Payload sending to Supabase:', payload);
 
-        if (index === -1) return null;
+            const { data, error } = await supabase
+                .from('customers')
+                .insert(payload)
+                .select()
+                .single();
 
-        const oldData = { ...local[index] };
-        const updatedCustomer: Customer = {
-            ...local[index],
-            ...updates,
-            updated_at: new Date().toISOString()
-        };
-
-        local[index] = updatedCustomer;
-        SafeStorage.set(CUSTOMERS_KEY, local);
-
-        ActivityLogger.log({
-            action: 'update',
-            entityType: 'customer',
-            entityId: id,
-            entityName: updatedCustomer.name,
-            userId: context.userId,
-            userName: context.userName || 'مستخدم',
-            organizationId: updatedCustomer.organization_id,
-            branchId: context.branchId,
-            oldData: oldData as unknown as Record<string, unknown>,
-            newData: updatedCustomer as unknown as Record<string, unknown>
-        });
-
-        if (isSupabaseConfigured() && navigator.onLine) {
-            const client = getSupabaseClient();
-            if (client) {
-                try {
-                    await client.from('customers').update(updates).eq('id', id);
-                } catch (err) {
-                    console.error('Error updating customer:', err);
-                    SyncService.addToQueue({
-                        operation: 'update',
-                        entityType: 'customers',
-                        entityId: id,
-                        data: updates as unknown as Record<string, unknown>,
-                        userId: context.userId,
-                        branchId: context.branchId
-                    });
-                }
+            if (error) {
+                console.error('❌ Supabase Error in createCustomer:', error);
+                console.error('Error details:', JSON.stringify(error, null, 2));
+                return null;
             }
-        } else {
-            SyncService.addToQueue({
-                operation: 'update',
-                entityType: 'customers',
-                entityId: id,
-                data: updates as unknown as Record<string, unknown>,
-                userId: context.userId,
-                branchId: context.branchId
-            });
+
+            console.log('✅ Customer created successfully:', data);
+            return data;
+        } catch (err) {
+            console.error('❌ Exception in createCustomer:', err);
+            return null;
         }
-
-        return updatedCustomer;
     },
 
     /**
-     * حذف عميل (Soft Delete)
+     * تحديث بيانات عميل
      */
-    async deleteCustomer(
-        id: string,
-        context: { userId: string; branchId: string; userName?: string }
-    ): Promise<boolean> {
-        return this.updateCustomer(id, { deleted_at: new Date().toISOString() }, context) !== null;
-    },
+    async updateCustomer(id: string, updates: Partial<Customer>): Promise<Customer | null> {
+        try {
+            const { data, error } = await supabase
+                .from('customers')
+                .update({
+                    ...updates,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', id)
+                .select()
+                .single();
 
-    /**
-     * البحث في العملاء
-     */
-    async searchCustomers(organizationId: string, query: string): Promise<Customer[]> {
-        const allCustomers = await this.getCustomers(organizationId);
-        const lowerQuery = query.toLowerCase();
-
-        return allCustomers.filter(c =>
-            c.name.toLowerCase().includes(lowerQuery) ||
-            (c.phone && c.phone.includes(query)) ||
-            (c.email && c.email.toLowerCase().includes(lowerQuery))
-        );
-    },
-
-    /**
-     * جلب رصيد العميل (محسوب)
-     */
-    async getCustomerBalance(customerId: string): Promise<number> {
-        if (isSupabaseConfigured() && navigator.onLine) {
-            const client = getSupabaseClient();
-            if (client) {
-                try {
-                    const { data } = await client
-                        .from('customer_balances')
-                        .select('balance')
-                        .eq('id', customerId)
-                        .single();
-                    return data?.balance || 0;
-                } catch {
-                    // View might not exist yet
-                }
+            if (error) {
+                console.error('❌ خطأ في تحديث العميل:', error);
+                return null;
             }
+
+            console.log('✅ تم تحديث العميل:', id);
+            return data;
+        } catch (err) {
+            console.error('❌ استثناء في تحديث العميل:', err);
+            return null;
         }
+    },
 
-        // حساب محلي
-        const sales = SafeStorage.get<{ customer_id: string; total_amount: number; status: string }[]>('alzhra_sales', []);
-        const vouchers = SafeStorage.get<{ party_id: string; amount: number; voucher_type: string; status: string }[]>('alzhra_vouchers', []);
+    /**
+     * حذف عميل (soft delete)
+     */
+    async deleteCustomer(id: string): Promise<boolean> {
+        try {
+            const { error } = await supabase
+                .from('customers')
+                .update({ is_active: false })
+                .eq('id', id);
 
-        const totalSales = sales
-            .filter(s => s.customer_id === customerId && s.status === 'completed')
-            .reduce((sum, s) => sum + s.total_amount, 0);
+            if (error) {
+                console.error('❌ خطأ في حذف العميل:', error);
+                return false;
+            }
 
-        const totalReceipts = vouchers
-            .filter(v => v.party_id === customerId && v.voucher_type === 'receipt' && v.status === 'confirmed')
-            .reduce((sum, v) => sum + v.amount, 0);
+            console.log('✅ تم تعطيل العميل:', id);
+            return true;
+        } catch (err) {
+            console.error('❌ استثناء في حذف العميل:', err);
+            return false;
+        }
+    },
 
-        return totalSales - totalReceipts;
+    /**
+     * البحث عن العملاء
+     */
+    async searchCustomers(companyId: string, query: string): Promise<Customer[]> {
+        try {
+            const { data, error } = await supabase
+                .from('customers')
+                .select('*')
+                .eq('company_id', companyId)
+                .or(`name.ilike.%${query}%,phone.ilike.%${query}%`)
+                .limit(20);
+
+            if (error) {
+                console.error('❌ خطأ في البحث عن العملاء:', error);
+                return [];
+            }
+
+            return data || [];
+        } catch (err) {
+            console.error('❌ استثناء في البحث عن العملاء:', err);
+            return [];
+        }
     }
 };
+
+export default CustomerService;

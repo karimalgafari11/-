@@ -1,68 +1,100 @@
 
-import React, { createContext, useContext, useState, useCallback, useEffect, useMemo } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { InventoryItem, Warehouse, StockAudit, StockTransfer } from '../types';
-import { logger } from '../lib/logger';
 import { useApp } from './AppContext';
-import { SafeStorage } from '../utils/storage';
-import { productsService, LocalProduct } from '../services/productsService';
+import { useUser } from './app/UserContext';
+import { ProductService } from '../services/productService'; // Corrected import
+import { warehousesService } from '../services/warehousesService';
+import type { Product } from '../types/supabase-types';
 
 interface InventoryContextValue {
-    inventory: InventoryItem[];
-    products: LocalProduct[];
+    inventory: InventoryItem[]; // InventoryItem might need mapping to/from Stock
+    products: Product[];
+
+    // المنتجات
     loadProducts: () => Promise<void>;
-    addProduct: (product: Omit<LocalProduct, 'id' | 'createdAt' | 'updatedAt'>) => Promise<LocalProduct | null>;
-    updateProduct: (id: string, updates: Partial<LocalProduct>) => Promise<LocalProduct | null>;
+    addProduct: (product: any) => Promise<Product | null>;
+    updateProduct: (id: string, updates: Partial<Product>) => Promise<Product | null>;
     deleteProduct: (id: string) => Promise<boolean>;
-    addInventoryItem: (item: InventoryItem) => void;
-    updateInventoryItem: (item: InventoryItem) => void;
-    deleteInventoryItem: (id: string) => void;
-    warehouses: Warehouse[];
-    addWarehouse: (warehouse: Warehouse) => void;
-    updateWarehouse: (warehouse: Warehouse) => void;
-    deleteWarehouse: (id: string) => void;
+
+    // Legacy Support
+    addInventoryItem?: (item: any) => void;
+    updateInventoryItem?: (item: any) => void;
+    deleteInventoryItem?: (id: string) => void;
+
+    // المستودعات
+    warehouses: Warehouse[]; // Map to Supabase Warehouse
+    addWarehouse: (warehouse: any) => Promise<void>;
+    updateWarehouse: (warehouse: any) => Promise<void>;
+    deleteWarehouse: (id: string) => Promise<void>;
+
+    // عمليات المخزون (نقل وجرد)
     transfers: StockTransfer[];
-    addTransfer: (transfer: StockTransfer) => void;
+    addTransfer: (transfer: any) => Promise<void>;
     audits: StockAudit[];
-    addAudit: (audit: StockAudit) => void;
+    addAudit: (audit: any) => Promise<void>;
+
     categories: string[];
     addCategory: (category: string) => void;
-    isLoading: boolean;
+
+    loading: boolean;
+    refreshData: () => Promise<void>;
 }
 
 const InventoryContext = createContext<InventoryContextValue | undefined>(undefined);
 
 export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const { showNotification } = useApp();
-    const [inventory, setInventory] = useState<InventoryItem[]>(() => SafeStorage.get('alzhra_inventory', []));
-    const [products, setProducts] = useState<LocalProduct[]>([]);
-    const [isLoading, setIsLoading] = useState(false);
-    const [warehouses, setWarehouses] = useState<Warehouse[]>(() => SafeStorage.get('alzhra_warehouses', []));
-    const [transfers, setTransfers] = useState<StockTransfer[]>(() => SafeStorage.get('alzhra_transfers', []));
-    const [audits, setAudits] = useState<StockAudit[]>(() => SafeStorage.get('alzhra_audits', []));
-    const [categories, setCategories] = useState<string[]>(() => SafeStorage.get('alzhra_inventoryCategories', []));
+    const { user } = useUser();
 
-    // جلب المنتجات من Supabase عند التهيئة
-    const loadProducts = useCallback(async () => {
-        setIsLoading(true);
+    const [inventory, setInventory] = useState<InventoryItem[]>([]);
+    const [products, setProducts] = useState<Product[]>([]);
+    const [warehouses, setWarehouses] = useState<any[]>([]);
+    const [transfers, setTransfers] = useState<StockTransfer[]>([]);
+    const [audits, setAudits] = useState<StockAudit[]>([]);
+    const [categories, setCategories] = useState<string[]>([]);
+
+    const [loading, setLoading] = useState(false);
+
+    const refreshData = useCallback(async () => {
+        if (!user?.companyId) return;
+
+        setLoading(true);
         try {
-            const data = await productsService.getAll();
-            setProducts(data);
+            const [fetchedProducts, fetchedWarehouses] = await Promise.all([
+                ProductService.getProducts(user.companyId),
+                warehousesService.getAll(user.companyId)
+                // TODO: Fetch inventory stock, transfers, audits
+            ]);
+
+            setProducts(fetchedProducts);
+            setWarehouses(fetchedWarehouses);
+
+            // Extract categories from products temporarily
+            const uniqueCategories = Array.from(new Set(fetchedProducts.map(p => p.category).filter(Boolean))) as string[];
+            setCategories(uniqueCategories);
+
         } catch (error) {
-            console.error('Error loading products:', error);
+            console.error('Error fetching inventory data:', error);
+            showNotification('فشل تحديث بيانات المخزون', 'error');
         } finally {
-            setIsLoading(false);
+            setLoading(false);
         }
-    }, []);
+    }, [user?.companyId, showNotification]);
 
-    // جلب المنتجات عند التحميل
     useEffect(() => {
-        loadProducts();
-    }, [loadProducts]);
+        if (user?.companyId) {
+            refreshData();
+        }
+    }, [user?.companyId, refreshData]);
 
-    // إضافة منتج جديد
-    const addProduct = useCallback(async (product: Omit<LocalProduct, 'id' | 'createdAt' | 'updatedAt'>) => {
+    // المنتجات
+    const loadProducts = refreshData;
+
+    const addProduct = useCallback(async (productData: any) => {
+        if (!user?.companyId) return null;
         try {
-            const newProduct = await productsService.create(product);
+            const newProduct = await ProductService.createProduct(user.companyId, productData);
             if (newProduct) {
                 setProducts(prev => [...prev, newProduct]);
                 showNotification('تم إضافة المنتج بنجاح');
@@ -74,12 +106,11 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             showNotification('حدث خطأ أثناء إضافة المنتج', 'error');
             return null;
         }
-    }, [showNotification]);
+    }, [user?.companyId, showNotification]);
 
-    // تحديث منتج
-    const updateProduct = useCallback(async (id: string, updates: Partial<LocalProduct>) => {
+    const updateProduct = useCallback(async (id: string, updates: Partial<Product>) => {
         try {
-            const updated = await productsService.update(id, updates);
+            const updated = await ProductService.updateProduct(id, updates);
             if (updated) {
                 setProducts(prev => prev.map(p => p.id === id ? updated : p));
                 showNotification('تم تحديث المنتج');
@@ -92,10 +123,9 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         }
     }, [showNotification]);
 
-    // حذف منتج
     const deleteProduct = useCallback(async (id: string) => {
         try {
-            const success = await productsService.delete(id);
+            const success = await ProductService.deleteProduct(id);
             if (success) {
                 setProducts(prev => prev.filter(p => p.id !== id));
                 showNotification('تم حذف المنتج');
@@ -109,87 +139,86 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }, [showNotification]);
 
     const addInventoryItem = useCallback((item: InventoryItem) => {
+        // Legacy handling
         setInventory(prev => [...prev, item]);
-        logger.info('Inventory item added', { itemId: item.id });
-        showNotification('تم إضافة الصنف بنجاح');
-    }, [showNotification]);
-
-    // حفظ البيانات عند التغيير مع debounce لتحسين الأداء
-    useEffect(() => {
-        const timer = setTimeout(() => SafeStorage.set('alzhra_inventory', inventory), 3000);
-        return () => clearTimeout(timer);
-    }, [inventory]);
-    useEffect(() => {
-        const timer = setTimeout(() => SafeStorage.set('alzhra_warehouses', warehouses), 3000);
-        return () => clearTimeout(timer);
-    }, [warehouses]);
-    useEffect(() => {
-        const timer = setTimeout(() => SafeStorage.set('alzhra_transfers', transfers), 3000);
-        return () => clearTimeout(timer);
-    }, [transfers]);
-    useEffect(() => {
-        const timer = setTimeout(() => SafeStorage.set('alzhra_audits', audits), 3000);
-        return () => clearTimeout(timer);
-    }, [audits]);
-    useEffect(() => {
-        const timer = setTimeout(() => SafeStorage.set('alzhra_inventoryCategories', categories), 3000);
-        return () => clearTimeout(timer);
-    }, [categories]);
-
-    const updateInventoryItem = useCallback((item: InventoryItem) => {
-        setInventory(prev => prev.map(i => i.id === item.id ? item : i));
-        logger.info('Inventory item updated', { itemId: item.id });
     }, []);
 
-    const deleteInventoryItem = useCallback((id: string) => {
-        setInventory(prev => prev.filter(i => i.id !== id));
-        logger.info('Inventory item deleted', { itemId: id });
-        showNotification('تم حذف الصنف بنجاح');
-    }, [showNotification]);
+    // المستودعات
+    const addWarehouse = useCallback(async (wh: any) => {
+        if (!user?.companyId) return;
+        try {
+            const added = await warehousesService.create(user.companyId, wh);
+            if (added) {
+                setWarehouses(prev => [...prev, added]);
+                showNotification('تم إضافة المستودع بنجاح');
+            }
+        } catch (e) { console.error(e); }
+    }, [user?.companyId, showNotification]);
 
-    const addWarehouse = useCallback((w: Warehouse) => {
-        setWarehouses(prev => [...prev, w]);
-        showNotification('تم إضافة المستودع بنجاح');
-    }, [showNotification]);
+    const updateWarehouse = useCallback(async (wh: any) => {
+        if (!user?.companyId) return;
+        try {
+            const updated = await warehousesService.update(wh.id, wh);
+            if (updated) {
+                setWarehouses(prev => prev.map(w => w.id === wh.id ? updated : w));
+            }
+        } catch (e) { console.error(e); }
+    }, [user?.companyId]);
 
-    const updateWarehouse = useCallback((w: Warehouse) => {
-        setWarehouses(prev => prev.map(i => i.id === w.id ? w : i));
+    const deleteWarehouse = useCallback(async (id: string) => {
+        // Service delete not implemented yet in warehousesService, assume soft delete or impl later
+        setWarehouses(prev => prev.filter(w => w.id !== id));
     }, []);
 
-    const deleteWarehouse = useCallback((id: string) => {
-        setWarehouses(prev => prev.filter(i => i.id !== id));
-        showNotification('تم حذف المستودع');
-    }, [showNotification]);
-
-    const addTransfer = useCallback((t: StockTransfer) => {
-        setTransfers(prev => [t, ...prev]);
-        showNotification('تم تسجيل عملية التحويل');
-    }, [showNotification]);
-
-    const addAudit = useCallback((a: StockAudit) => {
-        setAudits(prev => [a, ...prev]);
-        showNotification('تم تسجيل عملية الجرد');
-    }, [showNotification]);
-
-    const addCategory = useCallback((cat: string) => {
-        setCategories(prev => [...prev, cat]);
+    // Transfers & Audits (Placeholder for now)
+    const addTransfer = useCallback(async (transfer: any) => {
+        setTransfers(prev => [...prev, transfer]);
+        // await warehousesService.recordMovement(...)
     }, []);
 
-    const value: InventoryContextValue = useMemo(() => ({
-        inventory, products, loadProducts, addProduct, updateProduct, deleteProduct,
-        addInventoryItem, updateInventoryItem, deleteInventoryItem,
-        warehouses, addWarehouse, updateWarehouse, deleteWarehouse,
-        transfers, addTransfer,
-        audits, addAudit,
-        categories, addCategory,
-        isLoading
-    }), [inventory, products, loadProducts, addProduct, updateProduct, deleteProduct, addInventoryItem, updateInventoryItem, deleteInventoryItem, warehouses, addWarehouse, updateWarehouse, deleteWarehouse, transfers, addTransfer, audits, addAudit, categories, addCategory, isLoading]);
+    const addAudit = useCallback(async (audit: any) => {
+        setAudits(prev => [...prev, audit]);
+    }, []);
+
+    const addCategory = useCallback((category: string) => {
+        setCategories(prev => [...prev, category]);
+    }, []);
+
+    // Stub methods for legacy support
+    const updateInventoryItem = () => { };
+    const deleteInventoryItem = () => { };
+
+    const value: InventoryContextValue = {
+        inventory,
+        products,
+        loadProducts,
+        addProduct,
+        updateProduct,
+        deleteProduct,
+        addInventoryItem, // Legacy
+        updateInventoryItem, // Legacy
+        deleteInventoryItem, // Legacy
+        warehouses,
+        addWarehouse,
+        updateWarehouse,
+        deleteWarehouse,
+        transfers,
+        addTransfer,
+        audits,
+        addAudit,
+        categories,
+        addCategory,
+        loading,
+        refreshData
+    };
 
     return <InventoryContext.Provider value={value}>{children}</InventoryContext.Provider>;
 };
 
 export const useInventory = () => {
     const context = useContext(InventoryContext);
-    if (!context) throw new Error('useInventory must be used within InventoryProvider');
+    if (context === undefined) {
+        throw new Error('useInventory must be used within a InventoryProvider');
+    }
     return context;
 };

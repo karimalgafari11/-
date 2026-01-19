@@ -4,12 +4,12 @@
  */
 
 import { supabase } from '../lib/supabaseClient';
-import { companyService } from './companyService';
 import { Supplier } from '../types';
 
 // تحويل بيانات Supabase لنوع Supplier
 const mapToSupplier = (data: any): Supplier => ({
     id: data.id,
+    name: data.name, // Added
     companyName: data.name,
     contactName: data.name,
     phone: data.phone || '',
@@ -19,6 +19,8 @@ const mapToSupplier = (data: any): Supplier => ({
     balance: parseFloat(data.balance) || 0,
     notes: data.notes,
     isActive: data.is_active !== false,
+    status: data.is_active ? 'active' : 'inactive', // Added
+    taxNumber: data.tax_number || '', // Added
     createdAt: data.created_at,
     updatedAt: data.updated_at
 });
@@ -27,14 +29,8 @@ export const suppliersService = {
     /**
      * جلب جميع الموردين
      */
-    async getAll(): Promise<Supplier[]> {
+    async getAll(companyId: string): Promise<Supplier[]> {
         try {
-            const companyId = await companyService.getCompanyId();
-            if (!companyId) {
-                console.warn('No company ID found');
-                return [];
-            }
-
             const { data, error } = await supabase
                 .from('suppliers')
                 .select('*')
@@ -77,38 +73,38 @@ export const suppliersService = {
     /**
      * إنشاء مورد جديد
      */
-    async create(supplier: Omit<Supplier, 'id' | 'createdAt' | 'updatedAt'>): Promise<Supplier | null> {
+    async createSupplier(companyId: string, supplier: Omit<Supplier, 'id' | 'createdAt' | 'updatedAt'>): Promise<Supplier | null> {
+        console.log('🚀 SuppliersService.createSupplier called', { companyId, supplier });
         try {
-            const companyId = await companyService.getCompanyId();
-            if (!companyId) {
-                console.error('No company ID found');
-                return null;
-            }
+            const payload = {
+                company_id: companyId,
+                name: supplier.companyName || supplier.contactName,
+                phone: supplier.phone,
+                email: supplier.email,
+                address: supplier.address,
+                category: supplier.category,
+                balance: supplier.balance || 0,
+                notes: supplier.notes,
+                is_active: supplier.isActive !== false
+            };
+            console.log('📦 Payload sending to Supabase:', payload);
 
             const { data, error } = await supabase
                 .from('suppliers')
-                .insert({
-                    company_id: companyId,
-                    name: supplier.companyName || supplier.contactName,
-                    phone: supplier.phone,
-                    email: supplier.email,
-                    address: supplier.address,
-                    category: supplier.category,
-                    balance: supplier.balance || 0,
-                    notes: supplier.notes,
-                    is_active: supplier.isActive !== false
-                })
+                .insert(payload)
                 .select()
                 .single();
 
             if (error) {
-                console.error('Error creating supplier:', error);
+                console.error('❌ Supabase Error in createSupplier:', error);
+                console.error('Error details:', JSON.stringify(error, null, 2));
                 return null;
             }
 
+            console.log('✅ Supplier created successfully:', data);
             return mapToSupplier(data);
         } catch (error) {
-            console.error('Error in create supplier:', error);
+            console.error('❌ Exception in createSupplier:', error);
             return null;
         }
     },
@@ -116,7 +112,7 @@ export const suppliersService = {
     /**
      * تحديث مورد
      */
-    async update(id: string, updates: Partial<Supplier>): Promise<Supplier | null> {
+    async updateSupplier(id: string, updates: Partial<Supplier>): Promise<Supplier | null> {
         try {
             const updateData: any = { updated_at: new Date().toISOString() };
             if (updates.companyName !== undefined) updateData.name = updates.companyName;
@@ -150,7 +146,7 @@ export const suppliersService = {
     /**
      * حذف مورد (soft delete)
      */
-    async delete(id: string): Promise<boolean> {
+    async deleteSupplier(id: string): Promise<boolean> {
         try {
             const { error } = await supabase
                 .from('suppliers')

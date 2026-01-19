@@ -19,7 +19,7 @@ export const usePermissions = () => {
     const currentRole: UserRole = useMemo(() => {
         // تحويل الدور القديم للجديد
         if (!user?.role) return 'employee';
-        if (user.role === 'admin' || (user.role as string) === 'owner') return 'manager';
+        if ((user.role as string) === 'admin' || (user.role as string) === 'owner') return 'manager';
         if (user.role === 'accountant') return 'accountant';
         return 'employee';
     }, [user?.role]);
