@@ -26,15 +26,16 @@ export const useSaleForm = (taxRate: number = 0.15, initialItems: SaleItem[] = [
         total: (i.quantity + 1) * i.unitPrice * (1 + taxRate)
       } : i));
     } else {
+      const itemPrice = inventoryItem.price || 0;
       const newItem: SaleItem = {
         id: `SI-${Date.now()}-${Math.random()}`,
         itemId: inventoryItem.id,
-        sku: inventoryItem.sku,
+        sku: inventoryItem.sku || '',
         name: inventoryItem.name,
         quantity: 1,
-        unitPrice: inventoryItem.salePrice,
-        tax: inventoryItem.salePrice * taxRate,
-        total: inventoryItem.salePrice * (1 + taxRate)
+        unitPrice: itemPrice,
+        tax: itemPrice * taxRate,
+        total: itemPrice * (1 + taxRate)
       };
       setItems(prev => [...prev, newItem]);
     }

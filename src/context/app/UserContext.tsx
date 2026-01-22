@@ -1,7 +1,6 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, Language } from '../../../types';
-import { SafeStorage } from '../../../utils/storage';
 
 interface UserContextValue {
     user: User | null;
@@ -19,23 +18,17 @@ const UserContext = createContext<UserContextValue | undefined>(undefined);
 import { translations } from '../../../i18n/translations';
 
 export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const [user, setUserState] = useState<User | null>(() =>
-        SafeStorage.get('alzhra_user', { id: '1', companyId: '', name: 'أحمد المحاسب', role: 'manager', isActive: true })
-    );
+    const [user, setUserState] = useState<User | null>(null);
 
-    const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => !!user);
+    const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
 
-    const [language, setLanguageState] = useState<Language>(() =>
-        SafeStorage.get('alzhra_lang', 'ar')
-    );
+    const [language, setLanguageState] = useState<Language>('ar');
 
     useEffect(() => {
-        SafeStorage.set('alzhra_user', user);
         setIsAuthenticated(!!user);
     }, [user]);
 
     useEffect(() => {
-        SafeStorage.set('alzhra_lang', language);
         document.documentElement.dir = language === 'ar' ? 'rtl' : 'ltr';
         document.documentElement.lang = language;
     }, [language]);

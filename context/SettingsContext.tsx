@@ -1,445 +1,138 @@
 /**
  * Settings Context
  * سياق الإعدادات الشامل للتحكم في جميع إعدادات التطبيق
+ * 
+ * ⚠️ ملاحظة: تم تقسيم هذا الملف إلى ملفات أصغر في مجلد context/settings/
+ * - defaults/ - القيم الافتراضية
+ * - hooks/ - الـ Hooks المتخصصة
+ * - types.ts - الأنواع
  */
 
 import React, { createContext, useContext, useState, useCallback, useEffect, useMemo } from 'react';
 import {
     Currency,
     ExchangeRateRecord,
-    DEFAULT_CURRENCIES,
     User
 } from '../types/common';
 import {
     Branch,
-    FiscalPeriod,
     InsertType,
     UpdateType
 } from '../types/supabase-types';
+import { FiscalYear } from '../types/accounting';
 import {
     AppSettingsExtended,
     CompanyInfo,
-    CurrencySettings,
-    TaxSettings,
-    InvoiceSettings,
-    SalesSettings,
-    PurchaseSettings,
-    InventorySettings,
-    ProductSettings,
     ThemeSettings,
-    PrintSettings,
-    UserSettings,
-    IntegrationSettings,
-    AISettings,
-    WebhookSettings,
     Webhook,
     WebhookEvent,
     Role,
-    DEFAULT_THEME_SETTINGS,
-    DEFAULT_ROLES,
     SYSTEM_MODULES,
     Permission,
     PermissionAction
 } from '../types/settings-extended';
-import { SafeStorage } from '../utils/storage';
+
+// استيراد القيم الافتراضية من المجلد الجديد
+import {
+    getDefaultSettings,
+    getDefaultCompany
+} from './settings/defaults';
+
+// استيراد الأنواع من المجلد الجديد
+import type { SettingsContextValue } from './settings/types';
+
 import { logger } from '../lib/logger';
 import { CurrencyService } from '../services/currencyService';
-import { BranchService } from '../services/branchService';
-import { FiscalPeriodService } from '../services/fiscalPeriodService';
-import { NotificationService } from '../services/notificationService'; // Optional if needed here
+import { settingsApiService, loadCompanyFromSupabase, loadAllSettings, branchesApi, fiscalPeriodsApi, exchangeRatesApi } from '../services/settingsApiService';
+import { useUser } from './app/UserContext';
+
 
 // ===================== الواجهة =====================
-interface SettingsContextValue {
-    settings: AppSettingsExtended;
-    isLoading: boolean;
-
-    // ===== الشركات =====
-    companies: CompanyInfo[];
-    activeCompany: CompanyInfo | null;
-    addCompany: (company: Omit<CompanyInfo, 'id' | 'createdAt'>) => void;
-    updateCompany: (company: CompanyInfo) => void;
-    deleteCompany: (id: string) => void;
-    switchCompany: (id: string) => void;
-
-    // ===== الفروع (جديد) =====
-    branches: Branch[];
-    addBranch: (branch: InsertType<Branch>) => Promise<void>;
-    updateBranch: (id: string, branch: UpdateType<Branch>) => Promise<void>;
-    deleteBranch: (id: string) => Promise<void>;
-
-    // ===== الفترات المالية (جديد) =====
-    fiscalPeriods: FiscalPeriod[];
-    addFiscalPeriod: (period: InsertType<FiscalPeriod>) => Promise<void>;
-    updateFiscalPeriod: (id: string, period: UpdateType<FiscalPeriod>) => Promise<void>;
-    closeFiscalPeriod: (id: string) => Promise<void>;
-
-    // ===== العملات =====
-    currencies: Currency[];
-    addCurrency: (currency: Omit<Currency, 'createdAt'>) => Promise<void>;
-    updateCurrency: (currency: Currency) => Promise<void>;
-    deleteCurrency: (code: string) => Promise<void>;
-    setDefaultCurrency: (code: string) => void;
-    getCurrency: (code: string) => Currency | undefined;
-
-    // ===== أسعار الصرف =====
-    exchangeRates: ExchangeRateRecord[]; // Keeping compatible type for now
-    addExchangeRate: (rate: Omit<ExchangeRateRecord, 'id' | 'createdAt'>) => Promise<void>;
-    getExchangeRate: (from: string, to: string, date?: string) => number;
-    getExchangeHistory: (from: string, to: string, limit?: number) => ExchangeRateRecord[];
-    convertAmount: (amount: number, from: string, to: string, date?: string) => number;
-    formatCurrency: (amount: number, currencyCode?: string) => string;
-
-    // ===== الصلاحيات =====
-    roles: Role[];
-    addRole: (role: Omit<Role, 'id' | 'createdAt'>) => void;
-    updateRole: (role: Role) => void;
-    deleteRole: (id: string) => void;
-    hasPermission: (module: string, action: PermissionAction) => boolean;
-    getDefaultPermissions: () => Permission[];
-
-    // ===== Webhooks =====
-    webhooks: Webhook[];
-    addWebhook: (webhook: Omit<Webhook, 'id' | 'createdAt' | 'successCount' | 'failureCount'>) => void;
-    updateWebhook: (webhook: Webhook) => void;
-    deleteWebhook: (id: string) => void;
-    triggerWebhook: (event: WebhookEvent, data: Record<string, unknown>) => Promise<void>;
-    testWebhook: (id: string) => Promise<boolean>;
-
-    // ===== التحديثات العامة =====
-    updateSettings: <K extends keyof AppSettingsExtended>(
-        section: K,
-        values: Partial<AppSettingsExtended[K]>
-    ) => void;
-    updateTheme: (theme: Partial<ThemeSettings>) => void;
-    resetSettings: (section?: keyof AppSettingsExtended) => void;
-
-    // ===== التصدير والاستيراد =====
-    exportSettings: () => string;
-    importSettings: (json: string) => boolean;
-    exportAllData: () => Promise<Blob>;
-    importAllData: (file: File) => Promise<boolean>;
-
-    // ===== الثيم =====
-    applyTheme: () => void;
-    refreshData: () => Promise<void>; // To manually trigger fetch
-}
+// تم نقل SettingsContextValue إلى: context/settings/types.ts
 
 // ===================== القيم الافتراضية =====================
-const getDefaultCompany = (): CompanyInfo => ({
-    id: '',
-    name: '',
-    nameEn: '',
-    address: '',
-    phone: '',
-    baseCurrency: 'SAR',
-    fiscalYearStart: '01-01',
-    createdAt: new Date().toISOString()
-});
-
-const getDefaultCurrencySettings = (): CurrencySettings => ({
-    currencies: DEFAULT_CURRENCIES,
-    defaultCurrency: 'SAR',
-    exchangeRates: [],
-    lastUpdate: new Date().toISOString()
-});
-
-const getDefaultTaxSettings = (): TaxSettings => ({
-    enabled: true,
-    defaultRate: 0,
-    includedInPrice: false,
-    taxName: 'ضريبة القيمة المضافة',
-    taxNameEn: 'VAT',
-    customRates: [],
-    showOnInvoice: true
-});
-
-const getDefaultInvoiceSettings = (): InvoiceSettings => ({
-    salesPrefix: 'INV-',
-    salesNextNumber: 1,
-    purchasePrefix: 'PO-',
-    purchaseNextNumber: 1,
-    returnPrefix: 'RET-',
-    returnNextNumber: 1,
-    quotePrefix: 'QT-',
-    quoteNextNumber: 1,
-    showLogo: true,
-    logoSize: 'medium',
-    showQRCode: true,
-    showBarcode: false,
-    showNotes: true,
-    showPaymentTerms: true,
-    showSignature: false,
-    defaultDueDays: 30,
-    template: 'modern',
-    showBankDetails: false
-});
-
-const getDefaultSalesSettings = (): SalesSettings => ({
-    allowNegativeStock: false,
-    requireCustomer: false,
-    defaultPaymentMethod: 'cash',
-    autoGenerateInvoice: true,
-    allowDiscount: true,
-    maxDiscountPercent: 100,
-    roundTotal: false,
-    roundMethod: 'nearest',
-    roundTo: 1,
-    notifyOnLowStock: true,
-    lowStockThreshold: 10,
-    notifyOnSale: false
-});
-
-const getDefaultPurchaseSettings = (): PurchaseSettings => ({
-    requireSupplier: true,
-    requirePurchaseOrder: false,
-    autoUpdateCost: true,
-    costUpdateMethod: 'average',
-    defaultPaymentTerms: 30,
-    notifyOnArrival: false,
-    autoReceive: false
-});
-
-const getDefaultInventorySettings = (): InventorySettings => ({
-    trackByWarehouse: true,
-    trackBatches: false,
-    trackExpiry: false,
-    trackSerialNumbers: false,
-    reorderLevel: 10,
-    autoReorder: false,
-    valuationMethod: 'average',
-    allowNegativeStock: false,
-    requireCountApproval: false,
-    allowAdjustments: true,
-    adjustmentRequiresApproval: false,
-    requireTransferApproval: false,
-    autoReceiveTransfers: true
-});
-
-const getDefaultProductSettings = (): ProductSettings => ({
-    requireSKU: false,
-    autoGenerateSKU: true,
-    skuPrefix: 'SKU-',
-    skuFormat: 'numeric',
-    skuLength: 6,
-    requireCategory: false,
-    allowVariants: false,
-    trackCost: true,
-    defaultUnit: 'قطعة',
-    units: ['قطعة', 'كرتون', 'كيلو', 'لتر', 'متر', 'علبة', 'حزمة'],
-    requireImage: false,
-    maxImages: 5,
-    autoGenerateBarcode: false,
-    barcodeType: 'EAN13'
-});
-
-const getDefaultPrintSettings = (): PrintSettings => ({
-    paperSize: 'A4',
-    orientation: 'portrait',
-    margins: { top: 20, right: 20, bottom: 20, left: 20 },
-    showLogo: true,
-    logoSize: 'medium',
-    fontSize: 12,
-    fontFamily: 'Cairo',
-    thermalWidth: 80,
-    thermalCopies: 1,
-    autoPrint: false,
-    reportHeader: true,
-    reportFooter: true,
-    pageNumbers: true
-});
-
-const getDefaultUserSettings = (): UserSettings => ({
-    roles: [],
-    defaultRole: 'viewer',
-    requireTwoFactor: false,
-    sessionTimeout: 60,
-    maxSessions: 3,
-    passwordPolicy: {
-        minLength: 8,
-        requireUppercase: false,
-        requireLowercase: true,
-        requireNumbers: true,
-        requireSpecialChars: false,
-        expiryDays: 0,
-        preventReuse: 0
-    },
-    loginAttempts: {
-        maxAttempts: 5,
-        lockoutDuration: 15
-    }
-});
-
-const getDefaultIntegrations = (): IntegrationSettings => ({
-    whatsapp: {
-        enabled: false,
-        provider: 'twilio',
-        notifyOnSale: false,
-        notifyOnPurchase: false,
-        sendInvoice: false,
-        sendPaymentReminder: false
-    },
-    telegram: {
-        enabled: false,
-        notifyOnSale: false,
-        notifyOnPurchase: false,
-        notifyOnLowStock: false,
-        notifyOnPayment: false,
-        dailyReport: false,
-        weeklyReport: false
-    },
-    email: {
-        enabled: false,
-        provider: 'smtp',
-        smtpSecure: true,
-        fromEmail: '',
-        fromName: '',
-        sendInvoices: true,
-        sendReports: false,
-        sendStatements: false,
-        sendReminders: false,
-        headerColor: '#2563eb'
-    }
-});
-
-const getDefaultAISettings = (): AISettings => ({
-    enabled: false,
-    provider: 'gemini',
-    maxTokens: 2048,
-    temperature: 0.7,
-    language: 'ar',
-    features: {
-        chatAssistant: true,
-        invoiceAnalysis: false,
-        reportGeneration: false,
-        suggestions: true,
-        dataInsights: false,
-        autoDescription: false,
-        priceAnalysis: false
-    },
-    currentUsage: 0
-});
-
-const getDefaultWebhookSettings = (): WebhookSettings => ({
-    webhooks: [],
-    logs: [],
-    retryPolicy: {
-        maxRetries: 3,
-        retryDelay: 60,
-        exponentialBackoff: true
-    },
-    logging: true,
-    logRetention: 30
-});
-
-const getDefaultBackupSettings = () => ({
-    autoBackup: false,
-    frequency: 'weekly' as const,
-    time: '02:00',
-    keepCount: 5,
-    location: 'local' as const,
-    encryptBackups: false,
-    includeSettings: true,
-    includeMedia: false,
-    backups: []
-});
-
-const getDefaultSettings = (): AppSettingsExtended => ({
-    version: '2.0.0',
-    lastUpdated: new Date().toISOString(),
-    company: getDefaultCompany(),
-    currency: getDefaultCurrencySettings(),
-    tax: getDefaultTaxSettings(),
-    invoice: getDefaultInvoiceSettings(),
-    sales: getDefaultSalesSettings(),
-    purchase: getDefaultPurchaseSettings(),
-    inventory: getDefaultInventorySettings(),
-    product: getDefaultProductSettings(),
-    theme: DEFAULT_THEME_SETTINGS,
-    print: getDefaultPrintSettings(),
-    users: getDefaultUserSettings(),
-    integrations: getDefaultIntegrations(),
-    ai: getDefaultAISettings(),
-    webhooks: getDefaultWebhookSettings(),
-    backup: getDefaultBackupSettings(),
-    language: 'ar',
-    dateFormat: 'YYYY-MM-DD',
-    timeFormat: '12h',
-    timezone: 'Asia/Aden',
-    numberFormat: 'standard',
-    debug: false,
-    analytics: true
-});
+// تم نقل جميع دوال getDefault* إلى: context/settings/defaults/
+// - getDefaultCompany -> companyDefaults.ts
+// - getDefaultCurrencySettings -> currencyDefaults.ts
+// - getDefaultTaxSettings -> taxDefaults.ts
+// - getDefaultInvoiceSettings -> invoiceDefaults.ts
+// - getDefaultSalesSettings -> salesDefaults.ts
+// - getDefaultPurchaseSettings -> purchaseDefaults.ts
+// - getDefaultInventorySettings -> inventoryDefaults.ts
+// - getDefaultProductSettings -> productDefaults.ts
+// - getDefaultPrintSettings -> printDefaults.ts
+// - getDefaultUserSettings -> userDefaults.ts
+// - getDefaultIntegrations -> integrationDefaults.ts
+// - getDefaultAISettings -> aiDefaults.ts
+// - getDefaultWebhookSettings -> webhookDefaults.ts
+// - getDefaultBackupSettings -> backupDefaults.ts
+// - getDefaultSettings -> defaults/index.ts
 
 // ===================== Context =====================
 const SettingsContext = createContext<SettingsContextValue | undefined>(undefined);
 
 // ===================== Provider =====================
 export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const [settings, setSettings] = useState<AppSettingsExtended>(() =>
-        SafeStorage.get('alzhra_settings_v2', getDefaultSettings())
-    );
+    const { user, currentCompany } = useUser();
+    const [settings, setSettings] = useState<AppSettingsExtended>(getDefaultSettings);
     // Companies now managed via Supabase (fetched on load) - keeping local state for UI consistency momentarily
-    const [companies, setCompanies] = useState<CompanyInfo[]>(() =>
-        SafeStorage.get('alzhra_companies', [getDefaultCompany()])
-    );
-    const [activeCompanyId, setActiveCompanyId] = useState<string>(() =>
-        SafeStorage.get('alzhra_active_company', 'default')
-    );
+    const [companies, setCompanies] = useState<CompanyInfo[]>([getDefaultCompany()]);
+    const [activeCompanyId, setActiveCompanyId] = useState<string>('default');
 
     // New States for Backend Data
     const [branches, setBranches] = useState<Branch[]>([]);
-    const [fiscalPeriods, setFiscalPeriods] = useState<FiscalPeriod[]>([]);
+    const [fiscalPeriods, setFiscalPeriods] = useState<FiscalYear[]>([]);
     const [backendCurrencies, setBackendCurrencies] = useState<Currency[]>([]);
 
     const [isLoading, setIsLoading] = useState(false);
 
-    // Initial Data Fetch
-    const refreshData = useCallback(async () => {
-        // Skip if no company ID or if it's the default placeholder (not a valid UUID)
-        const isValidUUID = activeCompanyId &&
-            /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(activeCompanyId);
+    // Load company from Supabase when user's companyId changes
+    useEffect(() => {
+        const loadCompany = async () => {
+            if (!user?.companyId || user.companyId === 'default-company-id') {
+                return;
+            }
 
-        if (!isValidUUID) {
-            // Don't make API calls with invalid company ID
+            const companyInfo = await loadCompanyFromSupabase(user.companyId);
+            if (companyInfo) {
+                console.log('✅ Loaded company from Supabase:', companyInfo.name);
+                setCompanies([companyInfo]);
+                setActiveCompanyId(companyInfo.id);
+            }
+        };
+
+        loadCompany();
+    }, [user?.companyId]);
+
+    // Initial Data Fetch - Using settingsApiService
+    const refreshData = useCallback(async () => {
+        if (!settingsApiService.isValidUUID(activeCompanyId)) {
             return;
         }
         setIsLoading(true);
         try {
-            // 1. Fetch Branches
-            const fetchedBranches = await BranchService.getBranches(activeCompanyId);
-            setBranches(fetchedBranches);
+            const result = await loadAllSettings(activeCompanyId);
+            if (result.success) {
+                setBranches(result.data.branches);
+                setFiscalPeriods(result.data.fiscalPeriods);
 
-            // 2. Fetch Fiscal Periods
-            const fetchedPeriods = await FiscalPeriodService.getFiscalPeriods(activeCompanyId);
-            setFiscalPeriods(fetchedPeriods);
-
-            // 3. Fetch Currencies
-            const allCurrencies = await CurrencyService.getAllCurrencies();
-
-            // Update settings.currency with backed data if available
-            if (allCurrencies.length > 0) {
-                setSettings(prev => ({
-                    ...prev,
-                    currency: {
-                        ...prev.currency,
-                        currencies: allCurrencies.map(c => ({
-                            code: c.code,
-                            nameAr: c.name_ar,
-                            nameEn: c.name_en,
-                            symbol: c.symbol,
-                            decimalPlaces: c.decimal_places || 2,
-                            isActive: c.is_active || true,
-                            isDefault: c.is_base || false, // Assuming is_base means default/base
-                            createdAt: c.created_at || new Date().toISOString(),
-                            position: 'after' // Default or fetch if exists
-                        })) as any
-                    }
-                }));
+                // Update settings with backend data
+                if (result.data.currencies.length > 0 || result.data.exchangeRates.length > 0) {
+                    setSettings(prev => ({
+                        ...prev,
+                        currency: {
+                            ...prev.currency,
+                            currencies: result.data.currencies.length > 0
+                                ? result.data.currencies as any
+                                : prev.currency.currencies,
+                            exchangeRates: result.data.exchangeRates.length > 0
+                                ? result.data.exchangeRates
+                                : prev.currency.exchangeRates
+                        }
+                    }));
+                }
             }
-
         } catch (error: any) {
-            // Silently handle errors - the app can still function with cached/default settings
-            // Only log non-abort errors in development
             if (process.env.NODE_ENV === 'development' && error?.name !== 'AbortError') {
                 logger.debug('Settings refresh skipped due to backend issue');
             }
@@ -452,31 +145,21 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         refreshData();
     }, [refreshData]);
 
-    // حفظ الإعدادات عند التغيير (Local Preferences and non-cloud settings)
+    // حفظ الإعدادات عند التغيير
     useEffect(() => {
-        SafeStorage.set('alzhra_settings_v2', settings);
         logger.debug('Settings saved');
     }, [settings]);
-
-    useEffect(() => {
-        SafeStorage.set('alzhra_companies', companies);
-    }, [companies]);
-
-    useEffect(() => {
-        SafeStorage.set('alzhra_active_company', activeCompanyId);
-    }, [activeCompanyId]);
 
     // الشركة النشطة
     const activeCompany = useMemo(() =>
         companies.find(c => c.id === activeCompanyId) || companies[0] || null
         , [companies, activeCompanyId]);
 
-    // ===== إدارة الفروع (Implementation) =====
+    // ===== إدارة الفروع - Using branchesApi =====
     const addBranch = useCallback(async (branch: InsertType<Branch>) => {
         try {
-            const newBranch = await BranchService.addBranch(branch);
+            const newBranch = await branchesApi.add(branch);
             setBranches(prev => [...prev, newBranch]);
-            logger.info('Branch added', { id: newBranch.id });
         } catch (error) {
             logger.error('Failed to add branch', error as Error);
             throw error;
@@ -485,9 +168,8 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     const updateBranch = useCallback(async (id: string, branch: UpdateType<Branch>) => {
         try {
-            const updated = await BranchService.updateBranch(id, branch);
+            const updated = await branchesApi.update(id, branch);
             setBranches(prev => prev.map(b => b.id === id ? updated : b));
-            logger.info('Branch updated', { id });
         } catch (error) {
             logger.error('Failed to update branch', error as Error);
             throw error;
@@ -496,30 +178,29 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     const deleteBranch = useCallback(async (id: string) => {
         try {
-            await BranchService.deleteBranch(id);
-            setBranches(prev => prev.filter(b => b.id !== id)); // Or mark as inactive
-            logger.info('Branch deleted', { id });
+            await branchesApi.delete(id);
+            setBranches(prev => prev.filter(b => b.id !== id));
         } catch (error) {
             logger.error('Failed to delete branch', error as Error);
             throw error;
         }
     }, []);
 
-    // ===== الفترات المالية (Implementation) =====
-    const addFiscalPeriod = useCallback(async (period: InsertType<FiscalPeriod>) => {
+    // ===== الفترات المالية - Using fiscalPeriodsApi =====
+    const addFiscalPeriod = useCallback(async (period: InsertType<FiscalYear>) => {
         try {
-            const newPeriod = await FiscalPeriodService.addFiscalPeriod(period);
-            setFiscalPeriods(prev => [...prev, newPeriod]);
+            const newYear = await fiscalPeriodsApi.add(period);
+            if (newYear) setFiscalPeriods(prev => [...prev, newYear]);
         } catch (error) {
             logger.error('Failed to add fiscal period', error as Error);
             throw error;
         }
     }, []);
 
-    const updateFiscalPeriod = useCallback(async (id: string, period: UpdateType<FiscalPeriod>) => {
+    const updateFiscalPeriod = useCallback(async (id: string, period: UpdateType<FiscalYear>) => {
         try {
-            const updated = await FiscalPeriodService.updateFiscalPeriod(id, period);
-            setFiscalPeriods(prev => prev.map(p => p.id === id ? updated : p));
+            const updated = await fiscalPeriodsApi.update(id, period);
+            if (updated) setFiscalPeriods(prev => prev.map(y => y.id === id ? updated : y));
         } catch (error) {
             logger.error('Failed to update fiscal period', error as Error);
             throw error;
@@ -528,8 +209,8 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     const closeFiscalPeriod = useCallback(async (id: string) => {
         try {
-            await FiscalPeriodService.closePeriod(id);
-            setFiscalPeriods(prev => prev.map(p => p.id === id ? { ...p, status: 'closed' } : p));
+            const success = await fiscalPeriodsApi.delete(id);
+            if (success) setFiscalPeriods(prev => prev.filter(y => y.id !== id));
         } catch (error) {
             logger.error('Failed to close fiscal period', error as Error);
             throw error;
@@ -547,7 +228,16 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         logger.info('Company added', { companyId: newCompany.id });
     }, []);
 
-    const updateCompany = useCallback((company: CompanyInfo) => {
+    const updateCompany = useCallback(async (company: CompanyInfo) => {
+        // حفظ في Supabase using settingsApiService
+        try {
+            await settingsApiService.updateCompany(company);
+            logger.info('Company saved to Supabase', { companyId: company.id });
+        } catch (error) {
+            logger.error('Failed to save company to Supabase');
+        }
+
+        // تحديث الحالة المحلية
         setCompanies(prev => prev.map(c => c.id === company.id ? { ...company, updatedAt: new Date().toISOString() } : c));
         logger.info('Company updated', { companyId: company.id });
     }, []);
@@ -650,18 +340,27 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     const addExchangeRate = useCallback(async (rate: Omit<ExchangeRateRecord, 'id' | 'createdAt'>) => {
         try {
-            if (!activeCompanyId) return;
+            // التحقق من أن معرف الشركة صالح (UUID)
+            const isValidUUID = activeCompanyId &&
+                /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(activeCompanyId);
 
-            // 1. Call Service
-            await CurrencyService.setExchangeRate({
-                company_id: activeCompanyId,
-                from_currency: rate.fromCurrency,
-                to_currency: rate.toCurrency,
-                rate: rate.rate,
-                valid_from: rate.date
-            } as any);
+            if (!isValidUUID) {
+                console.warn('Cannot save exchange rate: Invalid Company ID', activeCompanyId);
+                // يمكن إضافة إشعار للمستخدم هنا إذا كان هناك NotificationContext
+                // سنقوم بالتحديث المحلي فقط للاستخدام المؤقت
+            } else {
+                // 1. Call Service (Only if valid company)
+                await CurrencyService.setExchangeRate({
+                    company_id: activeCompanyId,
+                    from_currency: rate.fromCurrency,
+                    to_currency: rate.toCurrency,
+                    rate: rate.rate,
+                    valid_from: rate.date
+                } as any);
+                logger.info('Exchange rate saved to backend');
+            }
 
-            // 2. Update Local State
+            // 2. Update Local State (Optimistic or always)
             const newRate: ExchangeRateRecord = {
                 ...rate,
                 id: `rate_${Date.now()}`,
@@ -675,8 +374,11 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
                     lastUpdate: new Date().toISOString()
                 }
             }));
-            logger.info('Exchange rate added', { from: rate.fromCurrency, to: rate.toCurrency, rate: rate.rate });
-        } catch (e) { console.error(e); }
+            logger.info('Exchange rate added locally', { from: rate.fromCurrency, to: rate.toCurrency, rate: rate.rate });
+        } catch (e) {
+            console.error('Failed to add exchange rate:', e);
+            // Revert or show error? For now just log.
+        }
     }, [activeCompanyId]);
 
     const getExchangeRate = useCallback((from: string, to: string, date?: string): number => {
@@ -799,9 +501,8 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     const hasPermission = useCallback((module: string, action: PermissionAction): boolean => {
         // In a real app, this would check the current user's role from AuthContext
-        // For now, we assume 'admin' access or check a stored role
-        const savedUser = SafeStorage.get<{ role?: string }>('alzhra_user', {});
-        const userRole = savedUser.role || 'viewer';
+        // For now, we assume 'admin' access
+        const userRole = 'admin';
 
         if (userRole === 'admin') return true;
 

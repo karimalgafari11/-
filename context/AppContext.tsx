@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { AppState, UIPreferences, CurrencyCode } from '../types';
-import { SafeStorage } from '../utils/storage';
+
 import { useTheme } from './app/ThemeContext';
 import { useNotification } from './app/NotificationContext';
 import { useUser } from './app/UserContext';
@@ -72,23 +72,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const { user, isAuthenticated, setUser, logout, language, setLanguage, t } = useUser();
 
   // Local state for UI and Settings (remaining parts)
-  const [ui, setUi] = useState<UIPreferences>(() =>
-    SafeStorage.get('alzhra_ui_prefs', defaultUI)
-  );
+  const [ui, setUi] = useState<UIPreferences>(defaultUI);
 
-  const [settings, setSettings] = useState<AppSettings>(() =>
-    SafeStorage.get('alzhra_settings', defaultSettings)
-  );
+  const [settings, setSettings] = useState<AppSettings>(defaultSettings);
 
   const [isLoading, setIsLoading] = useState(false);
 
-  useEffect(() => {
-    SafeStorage.set('alzhra_ui_prefs', ui);
-  }, [ui]);
 
-  useEffect(() => {
-    SafeStorage.set('alzhra_settings', settings);
-  }, [settings]);
 
   const updateUI = useCallback((prefs: Partial<UIPreferences>) => {
     setUi(prev => ({ ...prev, ...prefs }));

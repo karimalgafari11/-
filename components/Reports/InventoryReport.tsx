@@ -7,12 +7,16 @@ const InventoryReport: React.FC = () => {
 
     const reportData = useMemo(() => {
         return inventory.map(item => {
-            const openingBalance = Math.floor(item.quantity * 0.8);
-            const received = Math.floor(item.quantity * 0.3);
-            const issued = Math.floor(item.quantity * 0.1);
-            const closingBalance = item.quantity;
-            const value = item.quantity * item.costPrice;
-            const status = item.quantity <= item.minQuantity ? 'low' : item.quantity <= item.minQuantity * 2 ? 'warning' : 'ok';
+            const qty = item.quantity || 0;
+            const minQty = item.minQuantity || 0;
+            const cost = item.costPrice || 0;
+
+            const openingBalance = Math.floor(qty * 0.8);
+            const received = Math.floor(qty * 0.3);
+            const issued = Math.floor(qty * 0.1);
+            const closingBalance = qty;
+            const value = qty * cost;
+            const status = qty <= minQty ? 'low' : qty <= minQty * 2 ? 'warning' : 'ok';
 
             return {
                 itemName: item.name,
@@ -23,9 +27,9 @@ const InventoryReport: React.FC = () => {
                 issued,
                 closingBalance,
                 unit: item.unit,
-                costPrice: item.costPrice,
+                costPrice: cost,
                 value,
-                minQuantity: item.minQuantity,
+                minQuantity: minQty,
                 status
             };
         });
@@ -108,10 +112,10 @@ const InventoryReport: React.FC = () => {
             width: 100,
             render: (row: any) => (
                 <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${row.status === 'ok'
-                        ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20'
-                        : row.status === 'warning'
-                            ? 'bg-amber-50 text-amber-600 dark:bg-amber-900/20'
-                            : 'bg-rose-50 text-rose-600 dark:bg-rose-900/20'
+                    ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20'
+                    : row.status === 'warning'
+                        ? 'bg-amber-50 text-amber-600 dark:bg-amber-900/20'
+                        : 'bg-rose-50 text-rose-600 dark:bg-rose-900/20'
                     }`}>
                     {row.status === 'ok' ? 'جيد' : row.status === 'warning' ? 'تحذير' : 'منخفض'}
                 </span>

@@ -7,7 +7,7 @@ import { useSales } from '../context/SalesContext';
 import { usePurchases } from '../context/PurchasesContext';
 import { useInventory } from '../context/InventoryContext';
 import { Sale, Customer, Purchase, Supplier, SaleReturn, PurchaseReturn } from '../types';
-import { LocalProduct } from '../services/productsService';
+import { Product } from '../types/supabase-helpers';
 
 // القيم الافتراضية الآمنة
 const SAFE_DEFAULTS = {
@@ -15,7 +15,7 @@ const SAFE_DEFAULTS = {
     customers: [] as Customer[],
     purchases: [] as Purchase[],
     suppliers: [] as Supplier[],
-    products: [] as LocalProduct[],
+    products: [] as Product[],
     salesReturns: [] as SaleReturn[],
     purchaseReturns: [] as PurchaseReturn[],
 };

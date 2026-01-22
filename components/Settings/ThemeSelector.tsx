@@ -6,7 +6,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { premiumThemes, PremiumTheme, applyTheme, getThemeById } from '../../utils/themes';
-import { SafeStorage } from '../../utils/storage';
 import { Palette, Check, Sparkles, Moon, Sun } from 'lucide-react';
 
 interface ThemeSelectorProps {
@@ -17,9 +16,7 @@ const ThemeSelector: React.FC<ThemeSelectorProps> = ({ compact = false }) => {
     const { theme: appTheme, showNotification } = useApp();
     const isDark = appTheme === 'dark';
 
-    const [selectedTheme, setSelectedTheme] = useState<string>(() =>
-        SafeStorage.get('alzhra_premium_theme', 'midnight-ocean')
-    );
+    const [selectedTheme, setSelectedTheme] = useState<string>('midnight-ocean');
     const [isOpen, setIsOpen] = useState(false);
 
     // تطبيق الثيم عند التغيير
@@ -32,7 +29,6 @@ const ThemeSelector: React.FC<ThemeSelectorProps> = ({ compact = false }) => {
 
     const handleSelectTheme = (theme: PremiumTheme) => {
         setSelectedTheme(theme.id);
-        SafeStorage.set('alzhra_premium_theme', theme.id);
         applyTheme(theme);
         showNotification(`تم تطبيق ثيم ${theme.nameAr}`, 'success');
         setIsOpen(false);

@@ -11,7 +11,7 @@ export const BranchService = {
      * جلب كافة فروع الشركة
      */
     async getBranches(companyId: string): Promise<Branch[]> {
-        const { data, error } = await supabase
+        const { data, error } = await (supabase as any)
             .from('branches')
             .select('*')
             .eq('company_id', companyId)
@@ -26,7 +26,7 @@ export const BranchService = {
      * جلب فرع محدد بواسطة المعرف
      */
     async getBranch(id: string): Promise<Branch | null> {
-        const { data, error } = await supabase
+        const { data, error } = await (supabase as any)
             .from('branches')
             .select('*')
             .eq('id', id)
@@ -40,7 +40,7 @@ export const BranchService = {
      * إضافة فرع جديد
      */
     async addBranch(branch: InsertType<Branch>): Promise<Branch> {
-        const { data, error } = await supabase
+        const { data, error } = await (supabase as any)
             .from('branches')
             .insert(branch)
             .select()
@@ -54,7 +54,7 @@ export const BranchService = {
      * تحديث بيانات فرع
      */
     async updateBranch(id: string, updates: UpdateType<Branch>): Promise<Branch> {
-        const { data, error } = await supabase
+        const { data, error } = await (supabase as any)
             .from('branches')
             .update(updates)
             .eq('id', id)
@@ -70,7 +70,7 @@ export const BranchService = {
      */
     async deleteBranch(id: string): Promise<void> {
         // نفضل التعطيل soft delete بدلاً من الحذف النهائي للحفاظ على ترابط البيانات التاريخية
-        const { error } = await supabase
+        const { error } = await (supabase as any)
             .from('branches')
             .update({ is_active: false })
             .eq('id', id);

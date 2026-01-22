@@ -41,7 +41,7 @@ export interface User {
     id: string;
     companyId: string;
     name: string;
-    role: 'manager' | 'accountant' | 'employee';  // توحيد مع Supabase
+    role: 'admin';  // مبسط: جميع المستخدمين مدراء مع جميع الصلاحيات
     avatar?: string;
     email?: string;
     phone?: string;

@@ -54,7 +54,7 @@ const ItemSelectorModal: React.FC<ItemSelectorModalProps> = ({ isOpen, onClose, 
     const q = searchQuery.toLowerCase();
     const filtered = inventory.filter(item =>
       item.name.toLowerCase().includes(q) ||
-      item.itemNumber.toLowerCase().includes(q) ||
+      (item.itemNumber || '').toLowerCase().includes(q) ||
       (item.manufacturer || '').toLowerCase().includes(q) ||
       (item.category || '').toLowerCase().includes(q)
     );
@@ -258,13 +258,13 @@ const ItemSelectorModal: React.FC<ItemSelectorModalProps> = ({ isOpen, onClose, 
                             </div>
                           ) : col.key === 'quantity' ? (
                             <div className="text-center">
-                              <span className={`font-black tabular-nums ${item.quantity <= item.minQuantity ? 'text-rose-600' : 'text-emerald-600'}`}>
-                                {item.quantity.toLocaleString()}
+                              <span className={`font-black tabular-nums ${(item.quantity || 0) <= (item.minQuantity || 0) ? 'text-rose-600' : 'text-emerald-600'}`}>
+                                {(item.quantity || 0).toLocaleString()}
                               </span>
                             </div>
                           ) : col.key === 'salePrice' ? (
                             <div className="text-center font-black text-blue-600 tabular-nums">
-                              {item.salePrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                              {(item.salePrice || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                             </div>
                           ) : (
                             <div className={`text-center truncate font-bold ${col.key === 'itemNumber' ? 'text-slate-500 uppercase tracking-tighter' : 'text-slate-600 dark:text-slate-400'}`}>

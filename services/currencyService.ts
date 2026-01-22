@@ -31,7 +31,7 @@ export const CurrencyService = {
     async addCurrency(currency: Currency): Promise<Currency> {
         const { data, error } = await supabase
             .from('currencies')
-            .insert(currency)
+            .insert(currency as never)
             .select()
             .single();
 
@@ -99,7 +99,7 @@ export const CurrencyService = {
 
         await supabase
             .from('exchange_rates')
-            .update({ valid_to: now } as any) // Type casting needed for partial update logic sometimes
+            .update({ valid_to: now } as never)
             .eq('company_id', exchangeRate.company_id)
             .eq('from_currency', exchangeRate.from_currency)
             .eq('to_currency', exchangeRate.to_currency)
@@ -112,7 +112,7 @@ export const CurrencyService = {
                 ...exchangeRate,
                 valid_from: now,
                 valid_to: null
-            })
+            } as never)
             .select()
             .single();
 

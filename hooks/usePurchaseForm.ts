@@ -6,7 +6,7 @@ export const usePurchaseForm = (initialItems: PurchaseItem[] = []) => {
   const [items, setItems] = useState<PurchaseItem[]>(initialItems);
 
   const totals = useMemo(() => {
-    const subTotal = items.reduce((sum, item) => sum + (item.quantity * item.costPrice), 0);
+    const subTotal = items.reduce((sum, item) => sum + (item.quantity * (item.costPrice || 0)), 0);
     const taxTotal = subTotal * 0.15; // الضريبة الافتراضية 15%
     return {
       subTotal,
@@ -23,8 +23,8 @@ export const usePurchaseForm = (initialItems: PurchaseItem[] = []) => {
       setItems(prev => prev.map(i => i.itemId === inventoryItem.id && i.warehouseId === warehouseId ? {
         ...i,
         quantity: i.quantity + 1,
-        tax: (i.quantity + 1) * i.costPrice * 0.15,
-        total: (i.quantity + 1) * i.costPrice * 1.15
+        tax: (i.quantity + 1) * (i.costPrice || 0) * 0.15,
+        total: (i.quantity + 1) * (i.costPrice || 0) * 1.15
       } : i));
     } else {
       const newItem: PurchaseItem = {
@@ -32,9 +32,9 @@ export const usePurchaseForm = (initialItems: PurchaseItem[] = []) => {
         itemId: inventoryItem.id,
         name: inventoryItem.name,
         quantity: 1,
-        costPrice: inventoryItem.costPrice,
-        tax: inventoryItem.costPrice * 0.15,
-        total: inventoryItem.costPrice * 1.15,
+        costPrice: inventoryItem.cost || 0,
+        tax: (inventoryItem.cost || 0) * 0.15,
+        total: (inventoryItem.cost || 0) * 1.15,
         warehouseId: warehouseId
       };
       setItems(prev => [...prev, newItem]);
@@ -46,8 +46,8 @@ export const usePurchaseForm = (initialItems: PurchaseItem[] = []) => {
       if (item.id === id) {
         const updatedItem = { ...item, [field]: value };
         if (field === 'quantity' || field === 'costPrice') {
-          updatedItem.total = updatedItem.quantity * updatedItem.costPrice * 1.15;
-          updatedItem.tax = updatedItem.quantity * updatedItem.costPrice * 0.15;
+          updatedItem.total = updatedItem.quantity * (updatedItem.costPrice || 0) * 1.15;
+          updatedItem.tax = updatedItem.quantity * (updatedItem.costPrice || 0) * 0.15;
         }
         return updatedItem;
       }

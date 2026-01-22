@@ -13,7 +13,7 @@ export { default as BranchesManager } from './BranchesManager';
 export { default as FiscalPeriodsManager } from './FiscalPeriodsManager';
 
 export { default as CompanySettings } from './CompanySettings';
-export { default as CurrencyManager } from './CurrencyManager';
+export { default as CurrencyManager } from './Currency/CurrencyManager';
 export { default as ThemeCustomizer } from './ThemeCustomizer';
 export { default as IntegrationsHub } from './IntegrationsHub';
 export { default as WebhooksManager } from './WebhooksManager';

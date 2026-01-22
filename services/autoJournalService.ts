@@ -79,12 +79,11 @@ export const AutoJournalService = {
             // حفظ قيد المبيعات
             await AccountingService.createJournalEntry({
                 entry: {
-                    company_id: companyId,
                     entry_date: (sale as any).invoice_date || sale.created_at, // Handle potential missing fields
                     description: saleResult.description,
                     status: 'posted',
-                    source_type: 'sale',
-                    source_id: sale.id,
+                    reference_type: 'sale',
+                    reference_id: sale.id,
                     created_by: userId
                 },
                 lines: toServiceLines(saleResult.lines)
@@ -108,12 +107,11 @@ export const AutoJournalService = {
                 if (cogsResult.lines.length > 0) {
                     await AccountingService.createJournalEntry({
                         entry: {
-                            company_id: companyId,
                             entry_date: (sale as any).invoice_date || sale.created_at,
                             description: cogsResult.description,
                             status: 'posted',
-                            source_type: 'sale_cogs',
-                            source_id: sale.id,
+                            reference_type: 'sale_cogs',
+                            reference_id: sale.id,
                             created_by: userId
                         },
                         lines: toServiceLines(cogsResult.lines)
@@ -163,12 +161,11 @@ export const AutoJournalService = {
 
             await AccountingService.createJournalEntry({
                 entry: {
-                    company_id: companyId,
                     entry_date: purchase.invoice_date || purchase.created_at || new Date().toISOString().split('T')[0],
                     description: result.description,
                     status: 'posted',
-                    source_type: 'purchase',
-                    source_id: purchase.id,
+                    reference_type: 'purchase',
+                    reference_id: purchase.id,
                     created_by: userId
                 },
                 lines: toServiceLines(result.lines)
@@ -207,12 +204,11 @@ export const AutoJournalService = {
 
             await AccountingService.createJournalEntry({
                 entry: {
-                    company_id: companyId,
                     entry_date: expense.expense_date,
                     description: result.description,
                     status: 'posted',
-                    source_type: 'expense',
-                    source_id: expense.id,
+                    reference_type: 'expense',
+                    reference_id: expense.id,
                     created_by: userId
                 },
                 lines: toServiceLines(result.lines)
@@ -274,12 +270,11 @@ export const AutoJournalService = {
 
             await AccountingService.createJournalEntry({
                 entry: {
-                    company_id: companyId,
                     entry_date: voucher.voucher_date,
                     description: result.description,
                     status: 'posted',
-                    source_type: 'voucher',
-                    source_id: voucher.id,
+                    reference_type: 'voucher',
+                    reference_id: voucher.id,
                     created_by: userId
                 },
                 lines: toServiceLines(result.lines)

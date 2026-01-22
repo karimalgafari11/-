@@ -2,6 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import Modal from '../Common/Modal';
 import Button from '../UI/Button';
+import SearchableSelect from '../UI/SearchableSelect';
 import { usePurchases } from '../../context/PurchasesContext';
 import {
   Wallet, Calendar, User, Hash, Calculator,
@@ -20,6 +21,7 @@ const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({ isOpen, onC
   const { suppliers } = usePurchases();
   const [formData, setFormData] = useState({
     supplierId: '',
+    supplierName: '',
     amount: 0,
     paymentMethod: 'cash' as 'cash' | 'bank' | 'check',
     reference: '',
@@ -28,6 +30,15 @@ const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({ isOpen, onC
 
   const selectedSupplier = useMemo(() => suppliers.find(s => s.id === formData.supplierId), [formData.supplierId, suppliers]);
 
+  // تحويل الموردين للشكل المطلوب لـ SearchableSelect
+  const supplierItems = useMemo(() =>
+    suppliers.map(s => ({
+      id: s.id,
+      name: s.name || s.companyName || '', // دعم كلا الحقلين
+      subtext: s.contact_person || s.contactPerson || s.phone
+    })), [suppliers]
+  );
+
   const handleSubmit = () => {
     if (!formData.supplierId || formData.amount <= 0) return;
 
@@ -35,7 +46,7 @@ const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({ isOpen, onC
       id: `PMT-${Date.now()}`,
       voucherNumber: `VCH-${Math.floor(1000 + Math.random() * 9000)}`,
       supplierId: formData.supplierId,
-      supplierName: selectedSupplier?.companyName || '',
+      supplierName: formData.supplierName || selectedSupplier?.name || selectedSupplier?.companyName || '',
       date: new Date().toISOString().split('T')[0],
       amount: formData.amount,
       paymentMethod: formData.paymentMethod,
@@ -45,7 +56,7 @@ const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({ isOpen, onC
 
     onSave(payment);
     onClose();
-    setFormData({ supplierId: '', amount: 0, paymentMethod: 'cash', reference: '', notes: '' });
+    setFormData({ supplierId: '', supplierName: '', amount: 0, paymentMethod: 'cash', reference: '', notes: '' });
   };
 
   return (
@@ -68,18 +79,17 @@ const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({ isOpen, onC
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-1.5">
-            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">المورد</label>
-            <div className="relative">
-              <Truck className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-              <select
-                className="w-full pl-9 pr-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-bold text-xs outline-none focus:border-primary appearance-none"
-                value={formData.supplierId}
-                onChange={e => setFormData({ ...formData, supplierId: e.target.value })}
-              >
-                <option value="">-- اختر المورد --</option>
-                {suppliers.map(s => <option key={s.id} value={s.id}>{s.companyName}</option>)}
-              </select>
-            </div>
+            <SearchableSelect
+              items={supplierItems}
+              value={formData.supplierId}
+              selectedName={formData.supplierName}
+              onSelect={(id, name) => setFormData({ ...formData, supplierId: id, supplierName: name })}
+              onClear={() => setFormData({ ...formData, supplierId: '', supplierName: '' })}
+              placeholder="ابحث عن المورد..."
+              label="المورد"
+              noItemsMessage="لا يوجد موردين - أضف موردين أولاً"
+              emptyMessage="لا توجد نتائج للبحث"
+            />
           </div>
           <div className="space-y-1.5">
             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">المبلغ المدفوع</label>
@@ -88,7 +98,7 @@ const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({ isOpen, onC
               <input
                 type="number"
                 className="w-full pl-9 pr-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-black text-xs outline-none focus:border-primary"
-                placeholder="0.00"
+                placeholder=""
                 value={formData.amount || ''}
                 onChange={e => setFormData({ ...formData, amount: parseFloat(e.target.value) || 0 })}
               />

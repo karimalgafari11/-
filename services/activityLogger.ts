@@ -10,10 +10,11 @@ import {
     EntityType,
     ActionType
 } from '../types/activityLog';
-import { SafeStorage } from '../utils/storage';
 
-const ACTIVITY_LOG_KEY = 'alzhra_activity_log';
-const MAX_LOCAL_LOGS = 1000; // الحد الأقصى للسجلات المحلية
+
+// متغيرات محلية في الذاكرة (ليست localStorage)
+let activityLogs: ActivityLog[] = [];
+const MAX_LOCAL_LOGS = 1000; // الحد الأقصى للسجلات
 
 /**
  * توليد معرف فريد
@@ -83,16 +84,13 @@ export const ActivityLogger = {
             isOffline: !navigator.onLine
         };
 
-        // حفظ محلياً
-        const logs = ActivityLogger.getAll();
-        logs.unshift(log);
+        // حفظ في الذاكرة
+        activityLogs.unshift(log);
 
         // الحفاظ على الحد الأقصى
-        if (logs.length > MAX_LOCAL_LOGS) {
-            logs.splice(MAX_LOCAL_LOGS);
+        if (activityLogs.length > MAX_LOCAL_LOGS) {
+            activityLogs.splice(MAX_LOCAL_LOGS);
         }
-
-        SafeStorage.set(ACTIVITY_LOG_KEY, logs);
 
         return log;
     },
@@ -101,7 +99,7 @@ export const ActivityLogger = {
      * الحصول على جميع السجلات
      */
     getAll: (): ActivityLog[] => {
-        return SafeStorage.get<ActivityLog[]>(ACTIVITY_LOG_KEY, []);
+        return activityLogs;
     },
 
     /**
@@ -165,34 +163,28 @@ export const ActivityLogger = {
      * تحديث حالة المزامنة
      */
     markAsSynced: (ids: string[]): void => {
-        const logs = ActivityLogger.getAll();
         const now = new Date().toISOString();
 
-        logs.forEach(log => {
+        activityLogs.forEach(log => {
             if (ids.includes(log.id)) {
                 log.syncedAt = now;
             }
         });
-
-        SafeStorage.set(ACTIVITY_LOG_KEY, logs);
     },
 
     /**
      * مسح السجلات القديمة المزامنة
      */
     cleanOldSynced: (daysToKeep: number = 30): number => {
-        const logs = ActivityLogger.getAll();
         const cutoffDate = new Date();
         cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
         const cutoffStr = cutoffDate.toISOString();
 
-        const newLogs = logs.filter(l =>
+        const originalLength = activityLogs.length;
+        activityLogs = activityLogs.filter(l =>
             !l.syncedAt || l.createdAt > cutoffStr
         );
 
-        const removedCount = logs.length - newLogs.length;
-        SafeStorage.set(ACTIVITY_LOG_KEY, newLogs);
-
-        return removedCount;
+        return originalLength - activityLogs.length;
     }
 };

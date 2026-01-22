@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { SafeStorage } from '../../utils/storage';
+
 import { getThemeById, applyTheme } from '../../utils/themes';
 
 type ThemeMode = 'light' | 'dark';
@@ -14,16 +14,13 @@ interface ThemeContextValue {
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const [theme, setThemeState] = useState<ThemeMode>(() =>
-        SafeStorage.get('alzhra_theme', 'light' as ThemeMode)
-    );
+    const [theme, setThemeState] = useState<ThemeMode>('light');
 
     useEffect(() => {
-        SafeStorage.set('alzhra_theme', theme);
         if (theme === 'dark') {
             document.documentElement.classList.add('dark');
-            const savedThemeId = SafeStorage.get('alzhra_premium_theme', 'midnight-ocean');
-            const premiumTheme = getThemeById(savedThemeId);
+            // استخدام المظهر الافتراضي
+            const premiumTheme = getThemeById('midnight-ocean');
             applyTheme(premiumTheme);
         } else {
             document.documentElement.classList.remove('dark');

@@ -75,12 +75,12 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 // Add to transactions locally for UI feedback (optional)
                 addTransaction({
                     id: added.id,
-                    date: added.expense_date,
+                    date: added.date || new Date().toISOString(),
                     description: `مصروف: ${added.description}`,
                     amount: -(added.amount || 0),
                     currency: 'SAR',
                     account: 'مصاريف', // Should match chart of accounts
-                    category: (added as any).category || 'عام',
+                    category: (added as any).category || (added as any).description || 'عام',
                     status: 'paid' // From expense.status
                 });
 

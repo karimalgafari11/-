@@ -1,30 +1,32 @@
 /**
  * Accounting Service - خدمة المحاسبة
  * التعامل مع الحسابات والقيود
- * متوافق مع Supabase Schema
+ * متوافق مع Supabase Schema V6
  */
 
 import { supabase } from '../lib/supabaseClient';
-import { SafeStorage } from '../utils/storage';
+
 import { ActivityLogger } from './activityLogger';
 import type {
     Account,
     JournalEntry,
     JournalEntryLine,
     InsertType
-} from '../types/supabase-types';
+} from '../types/supabase-database';
+import { TrialBalanceRow } from '../types/accounting';
 
-const ACCOUNTS_KEY = 'alzhra_accounts';
-const JOURNAL_ENTRIES_KEY = 'alzhra_journal_entries';
-const JOURNAL_LINES_KEY = 'alzhra_journal_lines';
+// متغيرات مؤقتة للتخزين المحلي في الذاكرة (fallback)
+let cachedAccounts: Account[] = [];
+let cachedEntries: JournalEntry[] = [];
+let cachedLines: JournalEntryLine[] = [];
 
 export interface JournalEntryWithLines extends JournalEntry {
     lines: JournalEntryLine[];
 }
 
 export interface CreateJournalEntryData {
-    entry: Omit<InsertType<JournalEntry>, 'entry_number' | 'total_debit' | 'total_credit'>;
-    lines: Omit<InsertType<JournalEntryLine>, 'journal_entry_id' | 'company_id'>[];
+    entry: Omit<InsertType<'journal_entries'>, 'entry_number' | 'total_debit' | 'total_credit' | 'company_id'>;
+    lines: Omit<InsertType<'journal_entry_lines'>, 'journal_entry_id' | 'company_id'>[];
 }
 
 export const AccountingService = {
@@ -37,7 +39,7 @@ export const AccountingService = {
      */
     async getAccounts(companyId: string): Promise<Account[]> {
         try {
-            const { data, error } = await supabase
+            const { data, error } = await (supabase as any)
                 .from('accounts')
                 .select('*')
                 .eq('company_id', companyId)
@@ -45,23 +47,23 @@ export const AccountingService = {
                 .order('code');
 
             if (!error && data) {
-                SafeStorage.set(ACCOUNTS_KEY, data);
+                cachedAccounts = data;
                 return data;
             }
         } catch (err) {
             console.error('❌ خطأ في جلب الحسابات:', err);
         }
 
-        const local = SafeStorage.get<Account[]>(ACCOUNTS_KEY, []);
-        return local.filter(a => a.company_id === companyId && a.is_active);
+        return cachedAccounts.filter(a => a.company_id === companyId && a.is_active);
     },
 
     /**
      * جلب الحسابات حسب النوع
      */
-    async getAccountsByType(companyId: string, type: Account['account_type']): Promise<Account[]> {
+    async getAccountsByType(companyId: string, type: string): Promise<Account[]> {
         const accounts = await this.getAccounts(companyId);
-        return accounts.filter(a => a.account_type === type);
+        // Note: strict type checking might fail if string doesn't match enum exactly, but runtime is safe
+        return accounts.filter(a => a.type_id === type || (a as any).account_type === type);
     },
 
     /**
@@ -75,9 +77,24 @@ export const AccountingService = {
     /**
      * البحث عن حساب برقم الرمز
      */
-    async findAccount(companyId: string, code: string): Promise<Account | null> {
-        const accounts = await this.getAccounts(companyId);
-        return accounts.find(a => a.code === code) || null;
+    findAccount(companyId: string, code: string): Promise<Account | null> {
+        return this.getAccounts(companyId).then(accounts => accounts.find(a => a.code === code) || null);
+    },
+
+    /**
+     * جلب ميزان المراجعة
+     */
+    async getTrialBalance(companyId: string): Promise<TrialBalanceRow[]> {
+        const { data, error } = await (supabase as any)
+            .from('vw_trial_balance')
+            .select('*')
+            .eq('company_id', companyId);
+
+        if (error) {
+            console.error('Error fetching trial balance:', error);
+            return [];
+        }
+        return data || [];
     },
 
     // ========================================
@@ -95,7 +112,7 @@ export const AccountingService = {
         }
     ): Promise<JournalEntry[]> {
         try {
-            let query = supabase
+            let query = (supabase as any)
                 .from('journal_entries')
                 .select('*')
                 .eq('company_id', companyId)
@@ -106,15 +123,14 @@ export const AccountingService = {
 
             const { data, error } = await query;
             if (!error && data) {
-                SafeStorage.set(JOURNAL_ENTRIES_KEY, data);
+                cachedEntries = data;
                 return data;
             }
         } catch (err) {
             console.error('❌ خطأ في جلب قيود اليومية:', err);
         }
 
-        let entries = SafeStorage.get<JournalEntry[]>(JOURNAL_ENTRIES_KEY, [])
-            .filter(e => e.company_id === companyId);
+        let entries = cachedEntries.filter(e => e.company_id === companyId);
 
         if (options?.status) entries = entries.filter(e => e.status === options.status);
 
@@ -126,7 +142,7 @@ export const AccountingService = {
      */
     async getJournalEntryWithLines(entryId: string): Promise<JournalEntryWithLines | null> {
         try {
-            const { data: entry, error } = await supabase
+            const { data: entry, error } = await (supabase as any)
                 .from('journal_entries')
                 .select('*')
                 .eq('id', entryId)
@@ -134,12 +150,12 @@ export const AccountingService = {
 
             if (error || !entry) return null;
 
-            const { data: lines } = await supabase
+            const { data: lines } = await (supabase as any)
                 .from('journal_entry_lines')
                 .select('*')
                 .eq('journal_entry_id', entryId);
 
-            return { ...entry, lines: lines || [] };
+            return { ...(entry as JournalEntry), lines: lines || [] };
         } catch (err) {
             console.error('❌ خطأ في جلب القيد:', err);
             return null;
@@ -164,8 +180,8 @@ export const AccountingService = {
         const entryNumber = this.generateEntryNumber();
         const now = new Date().toISOString();
 
-        const newEntry: JournalEntry = {
-            id: `je_${Date.now()}`,
+        // 1. Prepare Entry Object
+        const newEntryPayload: InsertType<'journal_entries'> = {
             company_id: context.companyId,
             entry_number: entryNumber,
             entry_date: data.entry.entry_date || now.split('T')[0],
@@ -176,61 +192,52 @@ export const AccountingService = {
             total_credit: totalCredit,
             status: 'draft',
             created_by: context.userId,
-            created_at: now
+            created_at: now,
+
+            // Optional Fields from input
+            branch_id: data.entry.branch_id,
+            fiscal_year_id: data.entry.fiscal_year_id
         };
 
-        const newLines: JournalEntryLine[] = data.lines.map((line, index) => ({
-            id: `jel_${Date.now()}_${index}`,
-            company_id: context.companyId,
-            journal_entry_id: newEntry.id,
-            account_id: line.account_id,
-            description: line.description,
-            debit: line.debit || 0,
-            credit: line.credit || 0,
-            created_at: now
-        }));
+        let createdEntry: JournalEntry;
 
-        // الحفظ في Supabase
         try {
-            const { error: entryError } = await supabase
+            const { data: insertedEntry, error: entryError } = await (supabase as any)
                 .from('journal_entries')
-                .insert(newEntry);
+                .insert(newEntryPayload)
+                .select()
+                .single();
 
             if (entryError) throw entryError;
+            createdEntry = insertedEntry;
 
-            const { error: linesError } = await supabase
+            const newLinesPayload: InsertType<'journal_entry_lines'>[] = data.lines.map((line) => ({
+                company_id: context.companyId,
+                journal_entry_id: createdEntry.id,
+                account_id: line.account_id,
+                description: line.description,
+                debit: line.debit || 0,
+                credit: line.credit || 0,
+                created_at: now,
+                cost_center_id: line.cost_center_id,
+                currency_code: line.currency_code,
+                exchange_rate: line.exchange_rate
+            }));
+
+            const { data: insertedLines, error: linesError } = await (supabase as any)
                 .from('journal_entry_lines')
-                .insert(newLines);
+                .insert(newLinesPayload)
+                .select();
 
             if (linesError) throw linesError;
 
-            console.log('✅ تم حفظ القيد في Supabase:', newEntry.id);
+            console.log('✅ تم حفظ القيد في Supabase:', createdEntry.id);
+            return { ...createdEntry, lines: insertedLines as JournalEntryLine[] };
+
         } catch (err) {
             console.error('❌ خطأ في حفظ القيد:', err);
-            // Fallback: حفظ محلياً
-            const localEntries = SafeStorage.get<JournalEntry[]>(JOURNAL_ENTRIES_KEY, []);
-            localEntries.push(newEntry);
-            SafeStorage.set(JOURNAL_ENTRIES_KEY, localEntries);
-
-            const localLines = SafeStorage.get<JournalEntryLine[]>(JOURNAL_LINES_KEY, []);
-            localLines.push(...newLines);
-            SafeStorage.set(JOURNAL_LINES_KEY, localLines);
+            throw err;
         }
-
-        // تسجيل النشاط
-        ActivityLogger.log({
-            action: 'create',
-            entityType: 'journal_entry',
-            entityId: newEntry.id,
-            entityName: `قيد ${entryNumber}`,
-            userId: context.userId,
-            userName: context.userName || 'مستخدم',
-            organizationId: context.companyId,
-            branchId: '',
-            newData: { entry: newEntry, lines: newLines } as unknown as Record<string, unknown>
-        });
-
-        return { ...newEntry, lines: newLines };
     },
 
     /**
@@ -241,7 +248,7 @@ export const AccountingService = {
         context: { userId: string; userName?: string }
     ): Promise<boolean> {
         try {
-            const { data: entry, error: fetchError } = await supabase
+            const { data: entry, error: fetchError } = await (supabase as any)
                 .from('journal_entries')
                 .select('*')
                 .eq('id', entryId)
@@ -252,19 +259,20 @@ export const AccountingService = {
                 return false;
             }
 
-            if (entry.status !== 'draft') {
-                throw new Error('لا يمكن ترحيل قيد بحالة ' + entry.status);
+            const typedEntry = entry as JournalEntry;
+            if (typedEntry.status !== 'draft') {
+                throw new Error('لا يمكن ترحيل قيد بحالة ' + typedEntry.status);
             }
 
             const now = new Date().toISOString();
 
-            const { error: updateError } = await supabase
+            const { error: updateError } = await (supabase as any)
                 .from('journal_entries')
                 .update({
                     status: 'posted',
                     posted_by: context.userId,
                     posted_at: now
-                })
+                } as any)
                 .eq('id', entryId);
 
             if (updateError) {
@@ -281,7 +289,7 @@ export const AccountingService = {
     },
 
     /**
-     * توليد رقم قيد
+     * توليد رقم قيد (مؤقت)
      */
     generateEntryNumber(): string {
         const date = new Date();
@@ -294,60 +302,38 @@ export const AccountingService = {
     // BALANCE CALCULATIONS
     // ========================================
 
-    /**
-     * حساب رصيد حساب معين
-     */
     async getAccountBalance(companyId: string, accountId: string): Promise<number> {
         try {
-            const { data, error } = await supabase
+            // Note: In V6 schema, we should prefer 'accounts.current_balance' if available and reliable.
+            // But calculating from lines is safer if we want to be sure.
+            // However, V6 has triggers to update current_balance! So let's try to use that first for speed.
+
+            const { data: account, error } = await (supabase as any)
+                .from('accounts')
+                .select('current_balance')
+                .eq('id', accountId)
+                .single();
+
+            if (!error && account && account.current_balance !== null) {
+                return account.current_balance;
+            }
+
+            // Fallback to summing up lines
+            const { data: lines, error: linesError } = await (supabase as any)
                 .from('journal_entry_lines')
                 .select('debit, credit')
                 .eq('company_id', companyId)
                 .eq('account_id', accountId);
 
-            if (error || !data) return 0;
+            if (linesError || !lines) return 0;
 
-            const totalDebit = data.reduce((sum, l) => sum + (l.debit || 0), 0);
-            const totalCredit = data.reduce((sum, l) => sum + (l.credit || 0), 0);
+            const totalDebit = lines.reduce((sum: number, l: any) => sum + (l.debit || 0), 0);
+            const totalCredit = lines.reduce((sum: number, l: any) => sum + (l.credit || 0), 0);
 
             return totalDebit - totalCredit;
         } catch (err) {
             console.error('❌ خطأ في حساب الرصيد:', err);
             return 0;
         }
-    },
-
-    /**
-     * ميزان المراجعة
-     */
-    async getTrialBalance(companyId: string): Promise<{
-        accounts: Array<{
-            account: Account;
-            debit: number;
-            credit: number;
-        }>;
-        totalDebit: number;
-        totalCredit: number;
-    }> {
-        const accounts = await this.getAccounts(companyId);
-        const result: Array<{ account: Account; debit: number; credit: number }> = [];
-
-        let totalDebit = 0;
-        let totalCredit = 0;
-
-        for (const account of accounts) {
-            const balance = await this.getAccountBalance(companyId, account.id);
-
-            const debit = balance > 0 ? balance : 0;
-            const credit = balance < 0 ? Math.abs(balance) : 0;
-
-            if (debit > 0 || credit > 0) {
-                result.push({ account, debit, credit });
-                totalDebit += debit;
-                totalCredit += credit;
-            }
-        }
-
-        return { accounts: result, totalDebit, totalCredit };
     }
 };

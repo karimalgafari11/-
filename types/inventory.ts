@@ -9,21 +9,23 @@ export interface Warehouse {
     status: 'active' | 'full' | 'maintenance';
 }
 
-export interface InventoryItem {
-    id: string;
-    sku: string;
-    itemNumber: string;
-    name: string;
-    manufacturer: string;
-    category: string;
-    quantity: number;
-    unit: string;
-    minQuantity: number;
-    costPrice: number;
-    salePrice: number;
-    size?: string;
-    specifications?: string;
+import { Product } from './supabase-helpers';
+
+export interface InventoryItem extends Product {
+    // Add any frontend-specific fields if necessary, or alias legacy ones
+    // legacy support (optional)
+    itemNumber?: string;
+    minQuantity?: number;
+    costPrice?: number;
+    salePrice?: number;
     warehouses?: { id: string; name: string; quantity: number }[];
+    // Extended fields
+    size?: string;
+    color?: string;
+    specifications?: string;
+    manufacturer: string | null;
+    location?: string;
+    date?: string;
 }
 
 export interface AuditItem {

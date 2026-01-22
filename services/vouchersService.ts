@@ -4,7 +4,10 @@
  */
 
 import { supabase } from '../lib/supabaseClient';
-import type { Voucher, VoucherType, InsertType } from '../types/supabase-types';
+import type { Voucher, Insert, Update } from '../types/supabase-helpers';
+
+// Alias for clarity if needed, though 'type' is strict 'receipt' | 'payment'
+export type VoucherType = 'receipt' | 'payment';
 
 export const vouchersService = {
     /**
@@ -12,13 +15,16 @@ export const vouchersService = {
      */
     async getAll(companyId: string, type?: VoucherType): Promise<Voucher[]> {
         try {
-            let query = supabase
+            // Note: In V6, customers and suppliers are 'partners'.
+            // The relationship might need to be explicit if strict FK names are used, e.g. partners!vouchers_partner_id_fkey
+            // But usually 'partners' is enough if one FK.
+            let query = (supabase as any)
                 .from('vouchers')
-                .select('*')
+                .select('*, partners(name)')
                 .eq('company_id', companyId)
-                .order('voucher_date', { ascending: false });
+                .order('date', { ascending: false }); // 'date' instead of 'voucher_date' in V6? Check types. V6 TS says 'date'.
 
-            if (type) query = query.eq('voucher_type', type);
+            if (type) query = query.eq('type', type);
 
             const { data, error } = await query;
             if (error) throw error;
@@ -44,41 +50,36 @@ export const vouchersService = {
     },
 
     /**
-     * جلب سندات عميل
+     * جلب سندات عميل (Partner)
      */
-    async getByCustomer(companyId: string, customerId: string): Promise<Voucher[]> {
-        try {
-            const { data, error } = await supabase
-                .from('vouchers')
-                .select('*')
-                .eq('company_id', companyId)
-                .eq('customer_id', customerId)
-                .order('voucher_date', { ascending: false });
-
-            if (error) throw error;
-            return data || [];
-        } catch (err) {
-            console.error('❌ خطأ في جلب سندات العميل:', err);
-            return [];
-        }
+    async getByCustomer(companyId: string, partnerId: string): Promise<Voucher[]> {
+        // Legacy name kept for compatibility, but uses partner_id
+        return this.getByPartner(companyId, partnerId);
     },
 
     /**
-     * جلب سندات مورد
+     * جلب سندات مورد (Partner)
      */
-    async getBySupplier(companyId: string, supplierId: string): Promise<Voucher[]> {
+    async getBySupplier(companyId: string, partnerId: string): Promise<Voucher[]> {
+        return this.getByPartner(companyId, partnerId);
+    },
+
+    /**
+     * جلب سندات شريك (جديد V6)
+     */
+    async getByPartner(companyId: string, partnerId: string): Promise<Voucher[]> {
         try {
-            const { data, error } = await supabase
+            const { data, error } = await (supabase as any)
                 .from('vouchers')
-                .select('*')
+                .select('*, partners(name)')
                 .eq('company_id', companyId)
-                .eq('supplier_id', supplierId)
-                .order('voucher_date', { ascending: false });
+                .eq('partner_id', partnerId)
+                .order('date', { ascending: false });
 
             if (error) throw error;
             return data || [];
         } catch (err) {
-            console.error('❌ خطأ في جلب سندات المورد:', err);
+            console.error('❌ خطأ في جلب سندات الشريك:', err);
             return [];
         }
     },
@@ -88,18 +89,24 @@ export const vouchersService = {
      */
     async create(
         companyId: string,
-        voucher: Omit<InsertType<Voucher>, 'company_id' | 'voucher_number'>
+        voucher: Omit<Insert<'vouchers'>, 'company_id' | 'voucher_number'>
     ): Promise<Voucher | null> {
         try {
-            const voucherNumber = await this.generateNumber(companyId, voucher.voucher_type);
+            // Type is required in V6 InsertType, so usage must provide it.
+            const voucherType = voucher.type;
+            if (!voucherType) throw new Error('Voucher type is required');
 
-            const { data, error } = await supabase
+            const voucherNumber = await this.generateNumber(companyId, voucherType);
+
+            const payload: Insert<'vouchers'> = {
+                ...voucher,
+                company_id: companyId,
+                voucher_number: voucherNumber
+            };
+
+            const { data, error } = await (supabase as any)
                 .from('vouchers')
-                .insert({
-                    ...voucher,
-                    company_id: companyId,
-                    voucher_number: voucherNumber
-                })
+                .insert(payload)
                 .select()
                 .single();
 
@@ -113,17 +120,60 @@ export const vouchersService = {
     },
 
     /**
+     * تحديث سند
+     */
+    async update(id: string, updates: Partial<Insert<'vouchers'>>): Promise<Voucher | null> {
+        try {
+            const { data, error } = await (supabase as any)
+                .from('vouchers')
+                .update({
+                    ...updates,
+                    updated_at: new Date().toISOString()
+                } as Update<'vouchers'>)
+                .eq('id', id)
+                .select()
+                .single();
+
+            if (error) throw error;
+            console.log('✅ تم تحديث السند:', id);
+            return data;
+        } catch (err) {
+            console.error('❌ خطأ في تحديث السند:', err);
+            return null;
+        }
+    },
+
+    /**
+     * حذف سند
+     */
+    async delete(id: string): Promise<boolean> {
+        try {
+            const { error } = await (supabase as any)
+                .from('vouchers')
+                .delete()
+                .eq('id', id);
+
+            if (error) throw error;
+            console.log('✅ تم حذف السند:', id);
+            return true;
+        } catch (err) {
+            console.error('❌ خطأ في حذف السند:', err);
+            return false;
+        }
+    },
+
+    /**
      * توليد رقم سند
      */
     async generateNumber(companyId: string, type: VoucherType): Promise<string> {
         const prefix = type === 'receipt' ? 'RV' : 'PV';
         const year = new Date().getFullYear();
 
-        const { count } = await supabase
+        const { count } = await (supabase as any)
             .from('vouchers')
             .select('*', { count: 'exact', head: true })
             .eq('company_id', companyId)
-            .eq('voucher_type', type);
+            .eq('type', type);
 
         const number = ((count || 0) + 1).toString().padStart(5, '0');
         return `${prefix}-${year}-${number}`;
@@ -139,15 +189,15 @@ export const vouchersService = {
         paymentsCount: number;
     }> {
         try {
-            const { data, error } = await supabase
+            const { data, error } = await (supabase as any)
                 .from('vouchers')
-                .select('amount, voucher_type')
+                .select('amount, type')
                 .eq('company_id', companyId);
 
             if (error) throw error;
 
-            const stats = (data || []).reduce((acc, v) => {
-                if (v.voucher_type === 'receipt') {
+            const stats = (data || []).reduce((acc: any, v: any) => {
+                if (v.type === 'receipt') {
                     acc.totalReceipts += v.amount || 0;
                     acc.receiptsCount += 1;
                 } else {

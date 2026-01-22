@@ -12,7 +12,7 @@ import SettingsSelect from './SettingsSelect';
 import {
     Calendar, Plus, Lock, CheckCircle2, XCircle, AlertCircle
 } from 'lucide-react';
-import { FiscalPeriod } from '../../types/supabase-types';
+import { FiscalYear } from '../../types/supabase-helpers';
 
 const FiscalPeriodsManager: React.FC = () => {
     const { fiscalPeriods, addFiscalPeriod, closeFiscalPeriod } = useSettings();
@@ -48,11 +48,11 @@ const FiscalPeriodsManager: React.FC = () => {
 
     const initialPeriod = getNextYear();
 
-    const [newPeriod, setNewPeriod] = useState<Partial<FiscalPeriod>>({
+    const [newPeriod, setNewPeriod] = useState<Partial<FiscalYear>>({
         name: initialPeriod.name,
         start_date: initialPeriod.start,
         end_date: initialPeriod.end,
-        status: 'open',
+
         is_active: true
     });
 
@@ -97,7 +97,7 @@ const FiscalPeriodsManager: React.FC = () => {
                                 name: next.name,
                                 start_date: next.start,
                                 end_date: next.end,
-                                status: 'open',
+
                                 is_active: true
                             });
                             setShowAddModal(true);
@@ -113,7 +113,7 @@ const FiscalPeriodsManager: React.FC = () => {
                     {fiscalPeriods.sort((a, b) => new Date(b.start_date).getTime() - new Date(a.start_date).getTime()).map((period) => (
                         <div
                             key={period.id}
-                            className={`p-4 rounded-xl border transition-all ${period.status === 'open'
+                            className={`p-4 rounded-xl border transition-all ${period.is_active
                                 ? 'bg-white dark:bg-gray-800 border-purple-100 dark:border-purple-900/30 shadow-sm'
                                 : 'bg-gray-50 dark:bg-gray-800/50 border-gray-100 dark:border-gray-800'
                                 }`}
@@ -123,25 +123,25 @@ const FiscalPeriodsManager: React.FC = () => {
                                     <h4 className="font-black text-gray-900 dark:text-gray-100 text-lg">
                                         {period.name}
                                     </h4>
-                                    <span className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-bold ${period.status === 'open'
+                                    <span className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-bold ${period.is_active
                                         ? 'bg-green-100 dark:bg-green-900/20 text-green-600'
                                         : 'bg-gray-100 dark:bg-gray-800 text-gray-500'
                                         }`}>
-                                        {period.status === 'open' ? (
+                                        {period.is_active ? (
                                             <>
                                                 <CheckCircle2 size={10} />
-                                                مفتوحة
+                                                نشطة
                                             </>
                                         ) : (
                                             <>
                                                 <Lock size={10} />
-                                                مغلقة
+                                                غير نشطة
                                             </>
                                         )}
                                     </span>
                                 </div>
 
-                                {period.status === 'open' && (
+                                {period.is_active && (
                                     <button
                                         onClick={() => handleClosePeriod(period.id)}
                                         className="flex items-center gap-1.5 px-2 py-1 text-xs font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
@@ -217,15 +217,7 @@ const FiscalPeriodsManager: React.FC = () => {
                                 />
                             </div>
 
-                            <SettingsSelect
-                                label="الحالة"
-                                value={newPeriod.status || 'open'}
-                                onChange={(val) => setNewPeriod(prev => ({ ...prev, status: val as any }))}
-                                options={[
-                                    { value: 'open', label: 'مفتوحة' },
-                                    { value: 'closed', label: 'مغلقة' }
-                                ]}
-                            />
+
                         </div>
 
                         <div className="flex gap-3 mt-6">

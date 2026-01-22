@@ -3,9 +3,10 @@ import React, { createContext, useContext, useState, useCallback, useEffect } fr
 import { InventoryItem, Warehouse, StockAudit, StockTransfer } from '../types';
 import { useApp } from './AppContext';
 import { useUser } from './app/UserContext';
-import { ProductService } from '../services/productService'; // Corrected import
+import { productsService } from '../services/productsService'; // Corrected import
 import { warehousesService } from '../services/warehousesService';
-import type { Product } from '../types/supabase-types';
+import { categoriesService, ProductCategory } from '../services/categoriesService';
+import type { Product } from '../types/supabase-helpers';
 
 interface InventoryContextValue {
     inventory: InventoryItem[]; // InventoryItem might need mapping to/from Stock
@@ -61,18 +62,44 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
         setLoading(true);
         try {
-            const [fetchedProducts, fetchedWarehouses] = await Promise.all([
-                ProductService.getProducts(user.companyId),
-                warehousesService.getAll(user.companyId)
-                // TODO: Fetch inventory stock, transfers, audits
+            const [fetchedProducts, fetchedWarehouses, fetchedCategories] = await Promise.all([
+                productsService.getAll(),
+                warehousesService.getAll(user.companyId),
+                categoriesService.getCategoryNames(user.companyId)
             ]);
 
             setProducts(fetchedProducts);
             setWarehouses(fetchedWarehouses);
 
-            // Extract categories from products temporarily
-            const uniqueCategories = Array.from(new Set(fetchedProducts.map(p => p.category).filter(Boolean))) as string[];
-            setCategories(uniqueCategories);
+            // Map Products to Legacy Inventory Items for UI compatibility
+            const mappedInventory = fetchedProducts.map((p: Product) => ({
+                ...p,
+                id: p.id,
+                name: p.name,
+                itemNumber: p.sku || '',
+                sku: p.sku || '',
+                category: p.category || 'غير مصنف',
+                quantity: p.quantity || 0,
+                minQuantity: p.min_quantity || 0,
+                salePrice: p.price || 0,
+                costPrice: p.cost || 0,
+                unit: p.unit || 'حبة',
+                specifications: p.description || '',
+                manufacturer: '',
+                location: '',
+                size: '',
+                color: '',
+                date: p.created_at || new Date().toISOString()
+            }));
+            setInventory(mappedInventory);
+
+            // استخدام الفئات من Supabase، مع fallback للفئات من المنتجات
+            if (fetchedCategories.length > 0) {
+                setCategories(fetchedCategories);
+            } else {
+                const uniqueCategories = Array.from(new Set(fetchedProducts.map((p: Product) => p.category).filter(Boolean))) as string[];
+                setCategories(uniqueCategories);
+            }
 
         } catch (error) {
             console.error('Error fetching inventory data:', error);
@@ -94,7 +121,7 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const addProduct = useCallback(async (productData: any) => {
         if (!user?.companyId) return null;
         try {
-            const newProduct = await ProductService.createProduct(user.companyId, productData);
+            const newProduct = await productsService.create(productData);
             if (newProduct) {
                 setProducts(prev => [...prev, newProduct]);
                 showNotification('تم إضافة المنتج بنجاح');
@@ -110,7 +137,7 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
     const updateProduct = useCallback(async (id: string, updates: Partial<Product>) => {
         try {
-            const updated = await ProductService.updateProduct(id, updates);
+            const updated = await productsService.update(id, updates);
             if (updated) {
                 setProducts(prev => prev.map(p => p.id === id ? updated : p));
                 showNotification('تم تحديث المنتج');
@@ -125,7 +152,7 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
     const deleteProduct = useCallback(async (id: string) => {
         try {
-            const success = await ProductService.deleteProduct(id);
+            const success = await productsService.delete(id);
             if (success) {
                 setProducts(prev => prev.filter(p => p.id !== id));
                 showNotification('تم حذف المنتج');
@@ -166,9 +193,16 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }, [user?.companyId]);
 
     const deleteWarehouse = useCallback(async (id: string) => {
-        // Service delete not implemented yet in warehousesService, assume soft delete or impl later
-        setWarehouses(prev => prev.filter(w => w.id !== id));
-    }, []);
+        try {
+            const success = await warehousesService.delete(id);
+            if (success) {
+                setWarehouses(prev => prev.filter(w => w.id !== id));
+                showNotification('تم حذف المستودع');
+            }
+        } catch (e) {
+            console.error('Error deleting warehouse:', e);
+        }
+    }, [showNotification]);
 
     // Transfers & Audits (Placeholder for now)
     const addTransfer = useCallback(async (transfer: any) => {
@@ -180,9 +214,26 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         setAudits(prev => [...prev, audit]);
     }, []);
 
-    const addCategory = useCallback((category: string) => {
-        setCategories(prev => [...prev, category]);
-    }, []);
+    const addCategory = useCallback(async (category: string) => {
+        if (!user?.companyId || !category.trim()) return;
+
+        try {
+            const created = await categoriesService.create(user.companyId, {
+                name: category.trim(),
+                level: 1,
+                is_active: true
+            });
+
+            if (created) {
+                setCategories(prev => [...prev, category.trim()]);
+                showNotification('تم إضافة الفئة بنجاح');
+            }
+        } catch (error) {
+            console.error('Error adding category:', error);
+            // Fallback: إضافة محليًا فقط
+            setCategories(prev => [...prev, category.trim()]);
+        }
+    }, [user?.companyId, showNotification]);
 
     // Stub methods for legacy support
     const updateInventoryItem = () => { };

@@ -1,12 +1,15 @@
 /**
  * Balance Sheet Component
  * الميزانية العمومية
+ * 
+ * ✅ REFACTORED: Uses domain layer for calculations
  */
 
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { useOrganization } from '../../context/OrganizationContext';
 import { AccountingService } from '../../services/accountingService';
+import { calculateBalanceSheet, BalanceSheetResult } from '../../src/domain/accounting/reportCalculations';
 import Button from '../UI/Button';
 import { Printer, FileDown } from 'lucide-react';
 
@@ -16,7 +19,7 @@ const BalanceSheet: React.FC = () => {
 
     // State
     const [loading, setLoading] = useState(false);
-    const [reportData, setReportData] = useState<any>(null);
+    const [reportData, setReportData] = useState<BalanceSheetResult | null>(null);
 
     useEffect(() => {
         loadReport();
@@ -27,35 +30,24 @@ const BalanceSheet: React.FC = () => {
         setLoading(true);
 
         try {
+            // جلب البيانات من الخدمة
             const result = await AccountingService.getTrialBalance(company.id);
-            const trialBalance = result.accounts.map(item => ({
-                ...item,
-                balance: item.debit - item.credit
+
+            // ✅ تحويل البيانات من قاعدة البيانات (TrialBalanceRow) إلى نموذج النطاق (TrialBalanceItem)
+            const mappedData: any[] = result.map(row => ({
+                account: {
+                    id: row.account_id || row.code,
+                    code: row.code,
+                    name: row.name,
+                    account_type: row.account_type
+                },
+                debit: row.debit_balance,
+                credit: row.credit_balance
             }));
 
-            // الأصول
-            const assets = trialBalance.filter(item => item.account.account_type === 'asset' && item.balance !== 0);
-
-            // الخصوم
-            const liabilities = trialBalance.filter(item => item.account.account_type === 'liability' && item.balance !== 0);
-
-            // حقوق الملكية
-            const equity = trialBalance.filter(item => item.account.account_type === 'equity' && item.balance !== 0);
-
-            // حساب الإجماليات
-            const totalAssets = assets.reduce((sum, item) => sum + Math.abs(item.balance), 0);
-            const totalLiabilities = liabilities.reduce((sum, item) => sum + Math.abs(item.balance), 0);
-            const totalEquity = equity.reduce((sum, item) => sum + Math.abs(item.balance), 0);
-
-            setReportData({
-                assets,
-                liabilities,
-                equity,
-                totalAssets,
-                totalLiabilities,
-                totalEquity,
-                totalLiabilitiesAndEquity: totalLiabilities + totalEquity
-            });
+            // ✅ استخدام domain function للحسابات
+            const balanceSheet = calculateBalanceSheet(mappedData);
+            setReportData(balanceSheet);
 
         } catch (error) {
             console.error('Error loading balance sheet', error);

@@ -8,6 +8,7 @@ export * from './accounting/ledger';
 export * from './accounting/validation';
 export * from './accounting/financialStatements';
 export * from './accounting/journalBuilder';
+export * from './accounting/reportCalculations';  // NEW: Report calculations
 
 // Finance
 export * from './finance/currency';
@@ -24,3 +25,6 @@ export * from './purchases/calculations';
 
 // Inventory
 export * from './inventory/costing';
+
+// Expenses (NEW)
+export * from './expenses/calculations';

@@ -1,7 +1,7 @@
 /**
  * Database Service - خدمة قاعدة البيانات
- * طبقة تجريد للتعامل مع Supabase
- * التخزين السحابي فقط - بدون تخزين محلي
+ * طبقة تجريد للتعامل مع التخزين المحلي
+ * تم تحويله للعمل محلياً بدلاً من Supabase
  */
 
 import { supabase } from '../lib/supabaseClient';
@@ -33,7 +33,7 @@ export const DatabaseService = {
         }
     ): Promise<DatabaseResult<T[]>> {
         try {
-            let query = supabase.from(table).select('*');
+            let query = (supabase as any).from(table).select('*');
 
             if (options?.filter) {
                 Object.entries(options.filter).forEach(([key, value]) => {
@@ -66,7 +66,7 @@ export const DatabaseService = {
     },
 
     /**
-     * إدراج بيانات جديدة في Supabase
+     * إدراج البيانات في Supabase
      */
     async insert<T extends { id?: string }>(
         table: string,
@@ -83,7 +83,7 @@ export const DatabaseService = {
                 branch_id: context.branchId
             };
 
-            const { data: insertedData, error } = await supabase
+            const { data: insertedData, error } = await (supabase as any)
                 .from(table)
                 .insert(newData)
                 .select()
@@ -126,7 +126,7 @@ export const DatabaseService = {
     ): Promise<DatabaseResult<T>> {
         try {
             // جلب البيانات القديمة للتسجيل
-            const { data: oldData } = await supabase
+            const { data: oldData } = await (supabase as any)
                 .from(table)
                 .select('*')
                 .eq('id', id)
@@ -137,7 +137,7 @@ export const DatabaseService = {
                 updated_at: new Date().toISOString()
             };
 
-            const { data: result, error } = await supabase
+            const { data: result, error } = await (supabase as any)
                 .from(table)
                 .update(updatedData)
                 .eq('id', id)
@@ -181,13 +181,13 @@ export const DatabaseService = {
     ): Promise<DatabaseResult<boolean>> {
         try {
             // جلب البيانات قبل الحذف للتسجيل
-            const { data: oldData } = await supabase
+            const { data: oldData } = await (supabase as any)
                 .from(table)
                 .select('*')
                 .eq('id', id)
                 .single();
 
-            const { error } = await supabase
+            const { error } = await (supabase as any)
                 .from(table)
                 .delete()
                 .eq('id', id);
@@ -226,7 +226,7 @@ export const DatabaseService = {
         id: string
     ): Promise<DatabaseResult<T>> {
         try {
-            const { data, error } = await supabase
+            const { data, error } = await (supabase as any)
                 .from(table)
                 .select('*')
                 .eq('id', id)
@@ -262,7 +262,7 @@ export const DatabaseService = {
                 branch_id: context.branchId
             }));
 
-            const { data, error } = await supabase
+            const { data, error } = await (supabase as any)
                 .from(table)
                 .insert(newItems)
                 .select();

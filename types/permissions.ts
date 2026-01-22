@@ -57,6 +57,21 @@ export const SYSTEM_ROLES = {
 // صلاحيات كل دور
 export const DEFAULT_ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     // المدير - صلاحيات كاملة
+    admin: [
+        { module: 'dashboard', actions: ['view'] },
+        { module: 'sales', actions: ['view', 'create', 'edit', 'delete', 'export', 'approve', 'void'] },
+        { module: 'purchases', actions: ['view', 'create', 'edit', 'delete', 'export', 'approve', 'void'] },
+        { module: 'inventory', actions: ['view', 'create', 'edit', 'delete', 'export'] },
+        { module: 'customers', actions: ['view', 'create', 'edit', 'delete', 'export'] },
+        { module: 'suppliers', actions: ['view', 'create', 'edit', 'delete', 'export'] },
+        { module: 'expenses', actions: ['view', 'create', 'edit', 'delete', 'export', 'approve'] },
+        { module: 'vouchers', actions: ['view', 'create', 'edit', 'delete', 'export', 'approve'] },
+        { module: 'accounting', actions: ['view', 'create', 'edit', 'delete', 'export'] },
+        { module: 'reports', actions: ['view', 'export'] },
+        { module: 'settings', actions: ['view', 'edit'] },
+        { module: 'users', actions: ['view', 'create', 'edit', 'delete'] },
+        { module: 'activity_log', actions: ['view', 'export'] }
+    ],
     manager: [
         { module: 'dashboard', actions: ['view'] },
         { module: 'sales', actions: ['view', 'create', 'edit', 'delete', 'export', 'approve', 'void'] },

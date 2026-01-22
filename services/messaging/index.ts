@@ -25,13 +25,13 @@ import {
     DailyReportData,
     defaultMessagingSettings
 } from './types';
-import { SafeStorage } from '../../utils/storage';
+
 
 class MessagingManager {
     private settings: MessagingSettings;
 
     constructor() {
-        this.settings = SafeStorage.get('alzhra_messaging', defaultMessagingSettings);
+        this.settings = { ...defaultMessagingSettings };
         this.initialize();
     }
 
@@ -52,7 +52,6 @@ class MessagingManager {
      */
     updateSettings(settings: Partial<MessagingSettings>): void {
         this.settings = { ...this.settings, ...settings };
-        SafeStorage.set('alzhra_messaging', this.settings);
         this.initialize();
     }
 

@@ -5,9 +5,12 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { ConnectionState } from '../types/sync';
-import { SafeStorage } from '../utils/storage';
 
-const CONNECTION_STATE_KEY = 'alzhra_connection_state';
+// متغير في الذاكرة لحالة الاتصال
+let lastConnectionState: ConnectionState = {
+    isOnline: typeof navigator !== 'undefined' ? navigator.onLine : true,
+    lastOnlineAt: new Date().toISOString()
+};
 
 /**
  * Hook لمراقبة حالة الاتصال
@@ -19,12 +22,9 @@ export const useOnlineStatus = () => {
             return navigator.onLine;
         }
         return true;
-    }); const [connectionState, setConnectionState] = useState<ConnectionState>(() => {
-        return SafeStorage.get<ConnectionState>(CONNECTION_STATE_KEY, {
-            isOnline: navigator?.onLine ?? true,
-            lastOnlineAt: navigator?.onLine ? new Date().toISOString() : undefined
-        });
     });
+
+    const [connectionState, setConnectionState] = useState<ConnectionState>(lastConnectionState);
 
     // تحديث حالة الاتصال
     const updateConnectionState = useCallback((online: boolean) => {
@@ -37,7 +37,7 @@ export const useOnlineStatus = () => {
         };
 
         setConnectionState(newState);
-        SafeStorage.set(CONNECTION_STATE_KEY, newState);
+        lastConnectionState = newState;
     }, [connectionState]);
 
     // تحديث وقت آخر مزامنة
@@ -47,7 +47,7 @@ export const useOnlineStatus = () => {
             lastSyncAt: new Date().toISOString()
         };
         setConnectionState(newState);
-        SafeStorage.set(CONNECTION_STATE_KEY, newState);
+        lastConnectionState = newState;
     }, [connectionState]);
 
     useEffect(() => {

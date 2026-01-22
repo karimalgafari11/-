@@ -5,18 +5,20 @@
 
 import { supabase } from '../lib/supabaseClient';
 import { companyService } from './companyService';
+import type { Partner, Insert, Update } from '../types/supabase-helpers';
 import { Customer } from '../types';
 
 // تحويل بيانات Supabase لنوع Customer
-const mapToCustomer = (data: any): Customer => ({
+const mapToCustomer = (data: Partner): Customer => ({
     id: data.id,
-    name: data.name,
+    name: data.contact_person || data.name, // الاسم المسؤول
+    companyName: data.name, // اسم الشركة / المؤسسة
     phone: data.phone || '',
     email: data.email || '',
     address: data.address || '',
-    category: data.category || 'عام',
-    balance: parseFloat(data.balance) || 0,
-    notes: data.notes,
+    category: 'عام', // Partner doesn't have category yet
+    balance: data.current_balance || 0,
+    // notes: data.notes, // notes not in Partner
     isActive: data.is_active !== false,
     createdAt: data.created_at,
     updatedAt: data.updated_at,
@@ -37,10 +39,11 @@ export const customersService = {
                 return [];
             }
 
-            const { data, error } = await supabase
-                .from('customers')
+            const { data, error } = await (supabase as any)
+                .from('partners')
                 .select('*')
                 .eq('company_id', companyId)
+                .eq('type', 'customer')
                 .eq('is_active', true)
                 .order('name');
 
@@ -61,10 +64,11 @@ export const customersService = {
      */
     async getById(id: string): Promise<Customer | null> {
         try {
-            const { data, error } = await supabase
-                .from('customers')
+            const { data, error } = await (supabase as any)
+                .from('partners')
                 .select('*')
                 .eq('id', id)
+                .eq('type', 'customer')
                 .single();
 
             if (error || !data) return null;
@@ -81,36 +85,46 @@ export const customersService = {
      */
     async create(customer: Omit<Customer, 'id' | 'createdAt' | 'updatedAt' | 'isGeneral' | 'cashOnly'>): Promise<Customer | null> {
         try {
+            console.log('🚀 customersService.create() called with:', customer.name);
+
             const companyId = await companyService.getCompanyId();
             if (!companyId) {
-                console.error('No company ID found');
+                console.error('❌ customersService.create: No company ID found!');
+                console.log('💡 Run companyService.diagnoseUserSetup() in console to debug');
                 return null;
             }
 
-            const { data, error } = await supabase
-                .from('customers')
-                .insert({
-                    company_id: companyId,
-                    name: customer.name,
-                    phone: customer.phone,
-                    email: customer.email,
-                    address: customer.address,
-                    category: customer.category,
-                    balance: customer.balance || 0,
-                    notes: customer.notes,
-                    is_active: customer.isActive !== false
-                })
+            const payload: Insert<'partners'> = {
+                company_id: companyId,
+                name: customer.companyName || customer.name, // اسم الشركة هو الأساس
+                contact_person: customer.name, // اسم الشخص المسؤول
+                phone: customer.phone,
+                email: customer.email,
+                address: customer.address,
+                type: 'customer',
+                current_balance: customer.balance || 0,
+                // notes: customer.notes,
+                is_active: customer.isActive !== false
+            };
+
+            console.log('📦 Sending to Supabase:', payload);
+
+            const { data, error } = await (supabase as any)
+                .from('partners')
+                .insert(payload)
                 .select()
                 .single();
 
             if (error) {
-                console.error('Error creating customer:', error);
+                console.error('❌ Supabase error creating customer:', error);
+                console.error('Error details:', JSON.stringify(error, null, 2));
                 return null;
             }
 
+            console.log('✅ Customer created successfully:', data.id);
             return mapToCustomer(data);
         } catch (error) {
-            console.error('Error in create customer:', error);
+            console.error('❌ Exception in create customer:', error);
             return null;
         }
     },
@@ -120,18 +134,18 @@ export const customersService = {
      */
     async update(id: string, updates: Partial<Customer>): Promise<Customer | null> {
         try {
-            const updateData: any = { updated_at: new Date().toISOString() };
-            if (updates.name !== undefined) updateData.name = updates.name;
+            const updateData: Update<'partners'> = { updated_at: new Date().toISOString() };
+            if (updates.name !== undefined) updateData.contact_person = updates.name;
+            if (updates.companyName !== undefined) updateData.name = updates.companyName;
             if (updates.phone !== undefined) updateData.phone = updates.phone;
             if (updates.email !== undefined) updateData.email = updates.email;
             if (updates.address !== undefined) updateData.address = updates.address;
-            if (updates.category !== undefined) updateData.category = updates.category;
-            if (updates.balance !== undefined) updateData.balance = updates.balance;
-            if (updates.notes !== undefined) updateData.notes = updates.notes;
+            if (updates.balance !== undefined) updateData.current_balance = updates.balance;
+            // if (updates.notes !== undefined) updateData.notes = updates.notes;
             if (updates.isActive !== undefined) updateData.is_active = updates.isActive;
 
-            const { data, error } = await supabase
-                .from('customers')
+            const { data, error } = await (supabase as any)
+                .from('partners')
                 .update(updateData)
                 .eq('id', id)
                 .select()
@@ -154,9 +168,9 @@ export const customersService = {
      */
     async delete(id: string): Promise<boolean> {
         try {
-            const { error } = await supabase
-                .from('customers')
-                .update({ is_active: false, updated_at: new Date().toISOString() })
+            const { error } = await (supabase as any)
+                .from('partners')
+                .update({ is_active: false, updated_at: new Date().toISOString() } as Update<'partners'>)
                 .eq('id', id);
 
             if (error) {
@@ -181,9 +195,9 @@ export const customersService = {
 
             const newBalance = (customer.balance || 0) + amount;
 
-            const { error } = await supabase
-                .from('customers')
-                .update({ balance: newBalance, updated_at: new Date().toISOString() })
+            const { error } = await (supabase as any)
+                .from('partners')
+                .update({ current_balance: newBalance, updated_at: new Date().toISOString() } as Update<'partners'>)
                 .eq('id', id);
 
             if (error) {

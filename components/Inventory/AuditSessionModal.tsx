@@ -33,7 +33,7 @@ const AuditSessionModal: React.FC<AuditSessionModalProps> = ({ isOpen, onClose, 
           expectedQty,
           actualQty: expectedQty,
           variance: 0,
-          unitCost: item.costPrice,
+          unitCost: item.costPrice || 0,
           varianceValue: 0
         };
       });
@@ -61,7 +61,7 @@ const AuditSessionModal: React.FC<AuditSessionModalProps> = ({ isOpen, onClose, 
   const handleSubmit = () => {
     if (!warehouseId || auditItems.length === 0) return;
     const warehouse = warehouses.find(w => w.id === warehouseId);
-    
+
     const audit: StockAudit = {
       id: `AUD-${Date.now()}`,
       date: new Date().toISOString(),
@@ -84,7 +84,7 @@ const AuditSessionModal: React.FC<AuditSessionModalProps> = ({ isOpen, onClose, 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 dark:bg-slate-800/50 p-4 border border-slate-100 dark:border-slate-800">
           <div className="space-y-1.5">
             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">المستودع المستهدف</label>
-            <select 
+            <select
               className="w-full p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-bold text-xs outline-none focus:border-primary transition-all"
               value={warehouseId}
               onChange={e => handleWarehouseChange(e.target.value)}
@@ -126,8 +126,8 @@ const AuditSessionModal: React.FC<AuditSessionModalProps> = ({ isOpen, onClose, 
                     </td>
                     <td className="p-3 text-center font-mono font-bold text-slate-500">{item.expectedQty}</td>
                     <td className="p-2 text-center">
-                      <input 
-                        type="number" 
+                      <input
+                        type="number"
                         className="w-20 p-2 text-center bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-primary font-black text-primary outline-none transition-all"
                         value={item.actualQty}
                         onChange={e => updateQty(item.itemId, e.target.value)}
@@ -150,7 +150,7 @@ const AuditSessionModal: React.FC<AuditSessionModalProps> = ({ isOpen, onClose, 
 
         <div className="space-y-1.5">
           <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">ملاحظات الجرد</label>
-          <textarea 
+          <textarea
             className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-bold text-xs outline-none focus:border-primary min-h-[80px]"
             placeholder="أضف أي تفاصيل حول سبب الفروقات..."
             value={notes}
@@ -160,7 +160,7 @@ const AuditSessionModal: React.FC<AuditSessionModalProps> = ({ isOpen, onClose, 
 
         <div className="flex gap-3 pt-4">
           <Button variant="outline" fullWidth onClick={onClose}>إلغاء العملية</Button>
-          <Button variant="primary" fullWidth icon={<Save size={16}/>} onClick={handleSubmit} disabled={!warehouseId || auditItems.length === 0}>
+          <Button variant="primary" fullWidth icon={<Save size={16} />} onClick={handleSubmit} disabled={!warehouseId || auditItems.length === 0}>
             ترحيل واعتماد الجرد
           </Button>
         </div>

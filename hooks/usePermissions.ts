@@ -20,7 +20,7 @@ export const usePermissions = () => {
         // تحويل الدور القديم للجديد
         if (!user?.role) return 'employee';
         if ((user.role as string) === 'admin' || (user.role as string) === 'owner') return 'manager';
-        if (user.role === 'accountant') return 'accountant';
+        if ((user.role as string) === 'accountant') return 'accountant';
         return 'employee';
     }, [user?.role]);
 

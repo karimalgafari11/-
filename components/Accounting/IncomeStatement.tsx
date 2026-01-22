@@ -1,14 +1,17 @@
 /**
  * Income Statement Component
  * قائمة الدخل (الأرباح والخسائر)
+ * 
+ * ✅ REFACTORED: Uses domain layer for calculations
  */
 
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { useOrganization } from '../../context/OrganizationContext';
 import { AccountingService } from '../../services/accountingService';
+import { calculateIncomeStatement, IncomeStatementResult } from '../../src/domain/accounting/reportCalculations';
 import Button from '../UI/Button';
-import { Printer, FileDown, Calendar } from 'lucide-react';
+import { Printer, FileDown } from 'lucide-react';
 
 const IncomeStatement: React.FC = () => {
     const { t } = useApp();
@@ -16,7 +19,7 @@ const IncomeStatement: React.FC = () => {
 
     // State
     const [loading, setLoading] = useState(false);
-    const [reportData, setReportData] = useState<any>(null);
+    const [reportData, setReportData] = useState<IncomeStatementResult | null>(null);
     const [period, setPeriod] = useState('year'); // month, quarter, year
 
     useEffect(() => {
@@ -28,31 +31,24 @@ const IncomeStatement: React.FC = () => {
         setLoading(true);
 
         try {
-            // هنا سنقوم بحساب الأرصدة للحسابات (إيرادات ومصروفات)
-            // بما أن AccountingService لديه getTrialBalance، يمكننا استخدامه وتصفيته
+            // جلب البيانات من الخدمة
             const result = await AccountingService.getTrialBalance(company.id);
-            const trialBalance = result.accounts.map(item => ({
-                ...item,
-                balance: item.debit - item.credit
+
+            // ✅ تحويل البيانات من قاعدة البيانات (TrialBalanceRow) إلى نموذج النطاق (TrialBalanceItem)
+            const mappedData: any[] = result.map(row => ({
+                account: {
+                    id: row.account_id || row.code,
+                    code: row.code,
+                    name: row.name,
+                    account_type: row.account_type
+                },
+                debit: row.debit_balance,
+                credit: row.credit_balance
             }));
 
-            // تصفية الإيرادات (4xxx)
-            const revenues = trialBalance.filter(item => item.account.account_type === 'revenue' && item.balance !== 0);
-
-            // تصفية المصروفات (5xxx)
-            const expenses = trialBalance.filter(item => item.account.account_type === 'expense' && item.balance !== 0);
-
-            // حساب الإجماليات
-            const totalRevenue = revenues.reduce((sum, item) => sum + Math.abs(item.balance), 0);
-            const totalExpenses = expenses.reduce((sum, item) => sum + Math.abs(item.balance), 0);
-
-            setReportData({
-                revenues,
-                expenses,
-                totalRevenue,
-                totalExpenses,
-                netIncome: totalRevenue - totalExpenses
-            });
+            // ✅ استخدام domain function للحسابات
+            const incomeStatement = calculateIncomeStatement(mappedData);
+            setReportData(incomeStatement);
 
         } catch (error) {
             console.error('Error loading income statement', error);

@@ -14,7 +14,7 @@ const BalanceSheetReport: React.FC = () => {
     const reportData = useMemo(() => {
         // حساب الأصول
         const cash = transactions.reduce((sum, t) => sum + t.amount, 0);
-        const inventoryValue = inventory.reduce((sum, item) => sum + (item.quantity * item.costPrice), 0);
+        const inventoryValue = inventory.reduce((total, item) => total + ((item.quantity || 0) * (item.costPrice || 0)), 0);
         const accountsReceivable = customers.reduce((sum, c) => sum + (c.balance || 0), 0);
         const totalAssets = cash + inventoryValue + accountsReceivable;
 

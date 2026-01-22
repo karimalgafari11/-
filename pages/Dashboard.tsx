@@ -112,8 +112,8 @@ const Dashboard: React.FC = () => {
     const expenses = Math.abs(transactions.filter(t => t.amount < 0).reduce((sum, t) => sum + t.amount, 0));
     const profit = revenue - expenses;
     const totalItems = inventory.length;
-    const lowStockItems = inventory.filter(i => i.quantity < i.minQuantity).length;
-    const totalValue = inventory.reduce((sum, i) => sum + (i.quantity * i.costPrice), 0);
+    const lowStockItems = inventory.filter(i => (i.quantity || 0) < (i.min_quantity || 0)).length;
+    const totalValue = inventory.reduce((sum, i) => sum + ((i.quantity || 0) * (i.cost || 0)), 0);
 
     // حساب نسب التغير الشهرية
     const getMonthFromDate = (dateStr: string) => new Date(dateStr).getMonth();
@@ -193,7 +193,8 @@ const Dashboard: React.FC = () => {
   const categoryData = useMemo(() => {
     const categories: Record<string, number> = {};
     inventory.forEach(item => {
-      categories[item.category] = (categories[item.category] || 0) + item.quantity;
+      const cat = item.category || 'غير مصنف';
+      categories[cat] = (categories[cat] || 0) + (item.quantity || 0);
     });
     const colors = ['#06b6d4', '#8b5cf6', '#f59e0b', '#10b981', '#f43f5e'];
     return Object.entries(categories).slice(0, 5).map(([name, value], i) => ({

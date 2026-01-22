@@ -1,13 +1,15 @@
 /**
  * Organization Types - أنواع الشركة والمستخدمين
- * نظام مبسط: شركة واحدة مع مستخدمين (مدير، محاسب، موظف)
+ * نظام شامل للشركات والمستخدمين والصلاحيات
  */
 
+// أدوار المستخدمين - مبسط: فقط المدير مع جميع الصلاحيات
 // أدوار المستخدمين
-export type UserRole = 'manager' | 'accountant' | 'employee';
+export type UserRole = 'admin' | 'manager' | 'accountant' | 'employee';
 
 // أسماء الأدوار بالعربية
 export const ROLE_NAMES: Record<UserRole, string> = {
+    admin: 'مدير النظام',
     manager: 'مدير',
     accountant: 'محاسب',
     employee: 'موظف'
@@ -52,10 +54,37 @@ export interface CompanyUser {
 
 // الإعدادات الافتراضية للشركة
 export const DEFAULT_COMPANY_SETTINGS: CompanySettings = {
-    defaultCurrency: 'SAR',
-    timezone: 'Asia/Riyadh',
+    defaultCurrency: 'IQD',
+    timezone: 'Asia/Baghdad',
     fiscalYearStart: '01-01'
 };
+
+// بروفايل المستخدم في شركة
+export interface UserProfile {
+    id: string;
+    user_id: string;
+    company_id: string;
+    name: string;
+    email?: string;
+    phone?: string;
+    avatar?: string;
+    avatar_url?: string;  // للتوافق مع Supabase
+    role: UserRole;
+    is_active: boolean;
+    created_at: string;
+    updated_at: string;
+}
+
+// عضوية المستخدم في شركة
+export interface CompanyMembership {
+    id: string;
+    user_id: string;
+    company_id: string;
+    role: UserRole;
+    is_owner: boolean;
+    is_active: boolean;
+    joined_at: string;
+}
 
 // ==========================================
 // Legacy exports for backward compatibility

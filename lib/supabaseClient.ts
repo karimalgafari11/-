@@ -1,75 +1,47 @@
 /**
- * Supabase Client - عميل سوبابيس
- * الاتصال المركزي بقاعدة البيانات والمصادقة
+ * Supabase Client Compatibility Layer
+ * يجمع بين العميل الحقيقي (Real) والمحلي (Local)
+ * ويقوم بالتبديل بينهما بناءً على توفر الإعدادات
  */
 
-import { createClient } from '@supabase/supabase-js';
+import {
+    supabaseReal,
+    isSupabaseConfigured as isRealConfigured,
+    isSupabaseConnected as checkRealConnection
+} from './supabaseRealClient';
 
-// قراءة متغيرات البيئة
-// @ts-ignore - Vite provides this
-const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL || '';
-// @ts-ignore - Vite provides this
-const supabaseAnonKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || '';
+import {
+    db as localDbClient,
+    localDb as localDbAlias,
+    generateUUID as genUUID,
+    getCurrentTimestamp as getTimestamp
+} from './localStorageClient';
+import { localAuth } from './localAuthClient';
 
-// التحقق من وجود المتغيرات
-if (!supabaseUrl || !supabaseAnonKey) {
-    console.error('❌ Supabase configuration missing!');
-    console.error('Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in .env.local');
-}
+// تصدير الأدوات المساعدة
+export const generateUUID = genUUID;
+export const getCurrentTimestamp = getTimestamp;
 
-// التحقق من صحة صيغة مفتاح Supabase
-// مفتاح Supabase الصحيح يجب أن يكون JWT ويبدأ بـ eyJ
-const isValidSupabaseKey = supabaseAnonKey.startsWith('eyJ');
-if (supabaseAnonKey && !isValidSupabaseKey) {
-    console.error('❌ Invalid Supabase Anon Key format!');
-    console.error('The key should be a JWT token starting with "eyJ"');
-    console.error('Current key starts with:', supabaseAnonKey.substring(0, 15) + '...');
-    console.error('Please get the correct anon key from your Supabase project settings > API');
-}
+// تحديد العميل المستخدم
+const USE_REAL_CLIENT = isRealConfigured;
 
-// تصدير متغير للتحقق من صحة الإعدادات
-export const isSupabaseConfigured = !!(supabaseUrl && supabaseAnonKey && isValidSupabaseKey);
+console.log(`🔌 Supabase Client Mode: ${USE_REAL_CLIENT ? 'REAL (Cloud)' : 'LOCAL (Offline)'}`);
 
-// إنشاء عميل Supabase
-export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '', {
-    auth: {
-        // حفظ الجلسة في localStorage
-        persistSession: true,
-        // تحديث التوكن تلقائياً
-        autoRefreshToken: true,
-        // اكتشاف الجلسة من URL (للـ OAuth)
-        detectSessionInUrl: true,
-        // مفتاح التخزين
-        storageKey: 'alzhra_auth_session',
-        // رابط تدفق المصادقة
-        flowType: 'implicit'
-    },
-    // تعطيل الرسائل التصحيحية في وحدة التحكم
-    global: {
-        headers: { 'x-my-custom-header': 'alzhra-app' }
-    }
-});
-
-// نوع قاعدة البيانات (سيتم توسيعه لاحقاً)
-export type Database = {
-    public: {
-        Tables: {
-            profiles: {
-                Row: {
-                    id: string;
-                    name: string;
-                    email: string | null;
-                    phone: string | null;
-                    role: 'manager' | 'accountant' | 'employee';
-                    is_active: boolean;
-                    created_at: string;
-                    updated_at: string;
-                };
-                Insert: Omit<Database['public']['Tables']['profiles']['Row'], 'created_at' | 'updated_at'>;
-                Update: Partial<Database['public']['Tables']['profiles']['Insert']>;
-            };
-        };
+// العميل الموحد
+export const supabase = USE_REAL_CLIENT
+    ? supabaseReal
+    : {
+        ...localDbClient,
+        auth: localAuth
     };
-};
+
+// تصدير الحالة
+export const isSupabaseConfigured = USE_REAL_CLIENT;
+export const isSupabaseConnected = USE_REAL_CLIENT ? checkRealConnection : async () => true;
+export const currentStorageMode = USE_REAL_CLIENT ? 'real' : 'local';
+
+// تصدير العملاء للاستخدام المباشر عند الحاجة
+export const db = localDbClient;
+export const localDb = localDbAlias;
 
 export default supabase;

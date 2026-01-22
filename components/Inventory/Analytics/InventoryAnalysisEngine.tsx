@@ -19,8 +19,9 @@ const InventoryAnalysisEngine: React.FC<InventoryAnalysisEngineProps> = ({ inven
         // 1. Stock Distribution by Category (Value)
         const categoryMap = new Map<string, number>();
         inventory.forEach(item => {
-            const value = item.quantity * item.costPrice;
-            categoryMap.set(item.category, (categoryMap.get(item.category) || 0) + value);
+            const value = ((item.quantity || 0) * (item.costPrice || 0)) || 0;
+            const categoryName = item.category || 'غير مصنف'; // Default category if not present
+            categoryMap.set(categoryName, (categoryMap.get(categoryName) || 0) + value);
         });
         const distributionData = Array.from(categoryMap.entries())
             .map(([name, value]) => ({ name, value }))
@@ -46,7 +47,7 @@ const InventoryAnalysisEngine: React.FC<InventoryAnalysisEngineProps> = ({ inven
         // Note: InventoryItem currently doesn't track specific warehouse location per item in this version.
         // We will skip warehouse occupancy map or use a placeholder.
         // For now, let's just show 'Main Warehouse' for all items as valid placeholder until multi-warehouse item tracking is added.
-        warehouseMap.set('المستودع الرئيسي', inventory.reduce((sum, i) => sum + (i.quantity * i.costPrice), 0));
+        warehouseMap.set('المستودع الرئيسي', inventory.reduce((sum, i) => sum + ((i.quantity || 0) * (i.costPrice || 0)), 0));
 
         const warehouseData = Array.from(warehouseMap.entries())
             .map(([name, value]) => ({ name, value }))
@@ -56,16 +57,16 @@ const InventoryAnalysisEngine: React.FC<InventoryAnalysisEngineProps> = ({ inven
 
         // 3. Low Stock Items
         const lowStockData = inventory
-            .filter(i => i.quantity <= i.minQuantity)
-            .map(i => ({ name: i.name, quantity: i.quantity, minQuantity: i.minQuantity }))
+            .filter(i => (i.quantity || 0) <= (i.minQuantity || 0))
+            .map(i => ({ name: i.name, quantity: i.quantity || 0, minQuantity: i.minQuantity || 0 }))
             .sort((a, b) => a.quantity - b.quantity)
             .slice(0, 10);
 
 
         // 4. KPIs
-        const totalAssetValue = inventory.reduce((sum, i) => sum + (i.quantity * i.costPrice), 0);
-        const totalItemsCount = inventory.reduce((sum, i) => sum + i.quantity, 0);
-        const lowStockCount = inventory.filter(i => i.quantity <= i.minQuantity).length;
+        const totalAssetValue = inventory.reduce((sum, i) => sum + ((i.quantity || 0) * (i.costPrice || 0)), 0);
+        const totalItemsCount = inventory.reduce((sum, i) => sum + (i.quantity || 0), 0);
+        const lowStockCount = inventory.filter(i => (i.quantity || 0) <= (i.minQuantity || 0)).length;
 
         return {
             distributionData,

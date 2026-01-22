@@ -21,13 +21,13 @@ import InventoryAnalysisEngine from '../components/Inventory/Analytics/Inventory
 const Inventory: React.FC = () => {
   const { showNotification } = useApp();
   const {
-    inventory, warehouses, transfers, audits,
-    addInventoryItem, updateInventoryItem, deleteInventoryItem, addAudit, addWarehouse, addTransfer
+    products, warehouses, transfers, audits,
+    addProduct, updateProduct, deleteProduct, addAudit, addWarehouse, addTransfer
   } = useInventory();
 
   const handleDeleteItem = (id: string) => {
     if (window.confirm('هل أنت متأكد من حذف هذا الصنف؟')) {
-      deleteInventoryItem?.(id);
+      deleteProduct(id);
     }
   };
 
@@ -46,11 +46,11 @@ const Inventory: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
 
   const itemStats = useMemo(() => ({
-    totalItems: inventory.length,
-    totalQty: inventory.reduce((s, i) => s + i.quantity, 0),
-    totalValue: inventory.reduce((s, i) => s + (i.quantity * i.costPrice), 0),
-    lowStock: inventory.filter(i => i.quantity <= i.minQuantity).length
-  }), [inventory]);
+    totalItems: products.length,
+    totalQty: products.reduce((s, i) => s + (i.quantity || 0), 0),
+    totalValue: products.reduce((s, i) => s + ((i.quantity || 0) * (i.cost || 0)), 0),
+    lowStock: products.filter(i => (i.quantity || 0) <= (i.min_quantity || 0)).length
+  }), [products]);
 
   const auditStats = useMemo(() => ({
     totalSessions: audits.length,
@@ -61,18 +61,18 @@ const Inventory: React.FC = () => {
   const filteredData = useMemo(() => {
     const q = searchQuery.toLowerCase();
     switch (activeTab) {
-      case 'items': return inventory.filter(i => i.name.toLowerCase().includes(q) || i.itemNumber.toLowerCase().includes(q));
+      case 'items': return products.filter(i => i.name?.toLowerCase().includes(q) || i.sku?.toLowerCase().includes(q));
       case 'warehouses': return warehouses.filter(w => w.name.toLowerCase().includes(q));
       case 'transfers': return transfers.filter(t => t.itemName.toLowerCase().includes(q));
       case 'audit': return audits.filter(a => a.warehouseName.toLowerCase().includes(q));
       default: return [];
     }
-  }, [activeTab, inventory, warehouses, transfers, audits, searchQuery]);
+  }, [activeTab, products, warehouses, transfers, audits, searchQuery]);
 
   const columnsMap = {
     items: [
       { key: 'name', label: 'اسم الصنف', width: 220 },
-      { key: 'itemNumber', label: 'رقم الصنف', width: 140 },
+      { key: 'sku', label: 'رقم الصنف', width: 140 },
       { key: 'quantity', label: 'الكمية الكلية', type: 'number' as const, width: 100 },
       { key: 'category', label: 'الفئة', width: 120 },
       {
@@ -169,7 +169,7 @@ const Inventory: React.FC = () => {
 
 
       {activeTab === 'analytics' ? (
-        <InventoryAnalysisEngine inventory={inventory} warehouses={warehouses} />
+        <InventoryAnalysisEngine inventory={products} warehouses={warehouses} />
       ) : (
         <div className="h-[calc(100vh-340px)] min-h-[500px]">
           <DataGrid
@@ -185,7 +185,7 @@ const Inventory: React.FC = () => {
       <ItemFormModal
         isOpen={isItemFormOpen}
         onClose={() => setIsItemFormOpen(false)}
-        onSave={(item) => { addInventoryItem?.(item); showNotification('تم إضافة الصنف للمخزون'); }}
+        onSave={async (item) => { await addProduct(item); showNotification('تم إضافة الصنف للمخزون'); }}
       />
       <ItemDetailModal isOpen={isDetailOpen} onClose={() => setIsDetailOpen(false)} item={selectedItem} />
 
@@ -193,7 +193,7 @@ const Inventory: React.FC = () => {
         isOpen={isAuditModalOpen}
         onClose={() => setIsAuditModalOpen(false)}
         warehouses={warehouses}
-        inventory={inventory}
+        inventory={products}
         onComplete={(audit) => { addAudit(audit); showNotification('تم اعتماد نتائج الجرد وتحديث الأرصدة'); }}
       />
 
@@ -207,7 +207,7 @@ const Inventory: React.FC = () => {
         isOpen={isTransferModalOpen}
         onClose={() => setIsTransferModalOpen(false)}
         warehouses={warehouses}
-        inventory={inventory}
+        inventory={products}
         onTransfer={(t) => { addTransfer(t); showNotification('تمت مناقلة المخزون بنجاح'); }}
       />
 

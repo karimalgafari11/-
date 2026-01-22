@@ -28,6 +28,21 @@ const MainLayout: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
+  // إعداد إيماءات السحب لفتح القائمة - يجب أن يكون قبل أي return
+  const swipeHandlers = useSwipe({
+    onSwipeLeft: () => {
+      if (language === 'ar' && !sidebarOpen && window.innerWidth < 1024) {
+        setSidebarOpen(true);
+      }
+    },
+    onSwipeRight: () => {
+      if (language !== 'ar' && !sidebarOpen && window.innerWidth < 1024) {
+        setSidebarOpen(true);
+      }
+    },
+    threshold: 50
+  });
+
   // عرض شاشة تحميل أثناء التحقق من الجلسة
   if (isLoading) {
     return (
@@ -44,21 +59,6 @@ const MainLayout: React.FC = () => {
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
-
-  // إعداد إيماءات السحب لفتح القائمة
-  const swipeHandlers = useSwipe({
-    onSwipeLeft: () => {
-      if (language === 'ar' && !sidebarOpen && window.innerWidth < 1024) {
-        setSidebarOpen(true);
-      }
-    },
-    onSwipeRight: () => {
-      if (language !== 'ar' && !sidebarOpen && window.innerWidth < 1024) {
-        setSidebarOpen(true);
-      }
-    },
-    threshold: 50
-  });
 
   // تحديد الأيقونة بناءً على نوع الخطأ
   const getErrorIcon = (notification: any) => {

@@ -5,52 +5,13 @@
 
 import { supabase } from '../lib/supabaseClient';
 import { companyService } from './companyService';
-
-// نوع محلي للواجهة
-export interface LocalProduct {
-    id: string;
-    name: string;
-    nameEn?: string;
-    sku: string;
-    barcode?: string;
-    category: string;
-    unit: string;
-    salePrice: number;
-    costPrice: number;
-    quantity: number;
-    minQuantity: number;
-    description?: string;
-    image?: string;
-    isActive: boolean;
-    createdAt?: string;
-    updatedAt?: string;
-}
-
-// تحويل بيانات Supabase لنوع LocalProduct
-const mapToLocalProduct = (data: any): LocalProduct => ({
-    id: data.id,
-    name: data.name,
-    nameEn: data.name_en,
-    sku: data.sku || '',
-    barcode: data.barcode,
-    category: data.category || '',
-    unit: data.unit || 'قطعة',
-    salePrice: parseFloat(data.price) || 0,
-    costPrice: parseFloat(data.cost) || 0,
-    quantity: data.quantity || 0,
-    minQuantity: data.min_quantity || 0,
-    description: data.description,
-    image: data.image_url,
-    isActive: data.is_active !== false,
-    createdAt: data.created_at,
-    updatedAt: data.updated_at
-});
+import type { Product, Insert, Update } from '../types/supabase-helpers';
 
 export const productsService = {
     /**
      * جلب جميع المنتجات
      */
-    async getAll(): Promise<LocalProduct[]> {
+    async getAll(): Promise<Product[]> {
         try {
             const companyId = await companyService.getCompanyId();
             if (!companyId) {
@@ -58,7 +19,7 @@ export const productsService = {
                 return [];
             }
 
-            const { data, error } = await supabase
+            const { data, error } = await (supabase as any)
                 .from('products')
                 .select('*')
                 .eq('company_id', companyId)
@@ -70,7 +31,7 @@ export const productsService = {
                 return [];
             }
 
-            return (data || []).map(mapToLocalProduct);
+            return data || [];
         } catch (error) {
             console.error('Error in getAll products:', error);
             return [];
@@ -80,9 +41,9 @@ export const productsService = {
     /**
      * جلب منتج واحد
      */
-    async getById(id: string): Promise<LocalProduct | null> {
+    async getById(id: string): Promise<Product | null> {
         try {
-            const { data, error } = await supabase
+            const { data, error } = await (supabase as any)
                 .from('products')
                 .select('*')
                 .eq('id', id)
@@ -93,7 +54,7 @@ export const productsService = {
                 return null;
             }
 
-            return mapToLocalProduct(data);
+            return data;
         } catch (error) {
             console.error('Error in getById product:', error);
             return null;
@@ -103,43 +64,38 @@ export const productsService = {
     /**
      * إنشاء منتج جديد
      */
-    async create(product: Omit<LocalProduct, 'id' | 'createdAt' | 'updatedAt'>): Promise<LocalProduct | null> {
+    async create(product: Insert<'products'>): Promise<Product | null> {
         try {
+            console.log('🚀 productsService.create() called with:', product.name);
+
             const companyId = await companyService.getCompanyId();
             if (!companyId) {
-                console.error('No company ID found');
+                console.error('❌ productsService.create: No company ID found!');
                 return null;
             }
 
-            const { data, error } = await supabase
+            const payload: Insert<'products'> = {
+                ...product,
+                company_id: companyId
+            };
+
+            console.log('📦 Sending to Supabase:', payload);
+
+            const { data, error } = await (supabase as any)
                 .from('products')
-                .insert({
-                    company_id: companyId,
-                    name: product.name,
-                    name_en: product.nameEn,
-                    sku: product.sku || `SKU-${Date.now()}`,
-                    barcode: product.barcode,
-                    category: product.category,
-                    unit: product.unit || 'قطعة',
-                    price: product.salePrice,
-                    cost: product.costPrice,
-                    quantity: product.quantity,
-                    min_quantity: product.minQuantity,
-                    description: product.description,
-                    image_url: product.image,
-                    is_active: product.isActive !== false
-                })
+                .insert(payload)
                 .select()
                 .single();
 
             if (error) {
-                console.error('Error creating product:', error);
+                console.error('❌ Supabase error creating product:', error);
                 return null;
             }
 
-            return mapToLocalProduct(data);
+            console.log('✅ Product created successfully:', data.id);
+            return data;
         } catch (error) {
-            console.error('Error in create product:', error);
+            console.error('❌ Exception in create product:', error);
             return null;
         }
     },
@@ -147,25 +103,11 @@ export const productsService = {
     /**
      * تحديث منتج
      */
-    async update(id: string, updates: Partial<LocalProduct>): Promise<LocalProduct | null> {
+    async update(id: string, updates: Update<'products'>): Promise<Product | null> {
         try {
-            const updateData: any = { updated_at: new Date().toISOString() };
+            const updateData = { ...updates, updated_at: new Date().toISOString() };
 
-            if (updates.name !== undefined) updateData.name = updates.name;
-            if (updates.nameEn !== undefined) updateData.name_en = updates.nameEn;
-            if (updates.sku !== undefined) updateData.sku = updates.sku;
-            if (updates.barcode !== undefined) updateData.barcode = updates.barcode;
-            if (updates.category !== undefined) updateData.category = updates.category;
-            if (updates.unit !== undefined) updateData.unit = updates.unit;
-            if (updates.salePrice !== undefined) updateData.price = updates.salePrice;
-            if (updates.costPrice !== undefined) updateData.cost = updates.costPrice;
-            if (updates.quantity !== undefined) updateData.quantity = updates.quantity;
-            if (updates.minQuantity !== undefined) updateData.min_quantity = updates.minQuantity;
-            if (updates.description !== undefined) updateData.description = updates.description;
-            if (updates.image !== undefined) updateData.image_url = updates.image;
-            if (updates.isActive !== undefined) updateData.is_active = updates.isActive;
-
-            const { data, error } = await supabase
+            const { data, error } = await (supabase as any)
                 .from('products')
                 .update(updateData)
                 .eq('id', id)
@@ -177,7 +119,7 @@ export const productsService = {
                 return null;
             }
 
-            return mapToLocalProduct(data);
+            return data;
         } catch (error) {
             console.error('Error in update product:', error);
             return null;
@@ -189,7 +131,7 @@ export const productsService = {
      */
     async delete(id: string): Promise<boolean> {
         try {
-            const { error } = await supabase
+            const { error } = await (supabase as any)
                 .from('products')
                 .update({ is_active: false, updated_at: new Date().toISOString() })
                 .eq('id', id);
@@ -214,9 +156,9 @@ export const productsService = {
             const product = await this.getById(id);
             if (!product) return false;
 
-            const newQuantity = Math.max(0, product.quantity + quantityChange);
+            const newQuantity = Math.max(0, (product.quantity || 0) + quantityChange);
 
-            const { error } = await supabase
+            const { error } = await (supabase as any)
                 .from('products')
                 .update({ quantity: newQuantity, updated_at: new Date().toISOString() })
                 .eq('id', id);
@@ -236,12 +178,12 @@ export const productsService = {
     /**
      * البحث عن منتج بالباركود
      */
-    async findByBarcode(barcode: string): Promise<LocalProduct | null> {
+    async findByBarcode(barcode: string): Promise<Product | null> {
         try {
             const companyId = await companyService.getCompanyId();
             if (!companyId) return null;
 
-            const { data, error } = await supabase
+            const { data, error } = await (supabase as any)
                 .from('products')
                 .select('*')
                 .eq('company_id', companyId)
@@ -251,7 +193,7 @@ export const productsService = {
 
             if (error || !data) return null;
 
-            return mapToLocalProduct(data);
+            return data;
         } catch (error) {
             console.error('Error in findByBarcode:', error);
             return null;

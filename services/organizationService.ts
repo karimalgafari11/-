@@ -15,16 +15,11 @@ import {
     DEFAULT_DATA_SHARING,
     BranchInvitation
 } from '../types/organization';
-import { SafeStorage } from '../utils/storage';
 
-const COMPANY_KEY = 'alzhra_company';
-const USERS_KEY = 'alzhra_company_users';
 
-// Legacy keys
-const ORGANIZATION_KEY = 'alzhra_organization';
-const BRANCHES_KEY = 'alzhra_branches';
-const CURRENT_BRANCH_KEY = 'alzhra_current_branch';
-const INVITATIONS_KEY = 'alzhra_invitations';
+// متغيرات محلية في الذاكرة (ليست localStorage)
+let companyData: Company | null = null;
+let usersData: CompanyUser[] = [];
 
 /**
  * توليد معرف فريد
@@ -56,7 +51,7 @@ export const OrganizationService = {
             settings: DEFAULT_COMPANY_SETTINGS
         };
 
-        SafeStorage.set(COMPANY_KEY, company);
+        companyData = company;
         return company;
     },
 
@@ -64,7 +59,7 @@ export const OrganizationService = {
      * الحصول على الشركة
      */
     getCompany: (): Company | null => {
-        return SafeStorage.get<Company | null>(COMPANY_KEY, null);
+        return companyData;
     },
 
     /**
@@ -75,7 +70,7 @@ export const OrganizationService = {
         if (!company) return null;
 
         const updated = { ...company, ...updates, updatedAt: new Date().toISOString() };
-        SafeStorage.set(COMPANY_KEY, updated);
+        companyData = updated;
         return updated;
     },
 
@@ -85,7 +80,7 @@ export const OrganizationService = {
      * الحصول على جميع المستخدمين
      */
     getUsers: (): CompanyUser[] => {
-        return SafeStorage.get<CompanyUser[]>(USERS_KEY, []);
+        return usersData;
     },
 
     /**
@@ -110,8 +105,7 @@ export const OrganizationService = {
             updatedAt: new Date().toISOString()
         };
 
-        users.push(user);
-        SafeStorage.set(USERS_KEY, users);
+        usersData.push(user);
         return user;
     },
 
@@ -124,26 +118,24 @@ export const OrganizationService = {
 
         if (index === -1) return null;
 
-        users[index] = {
-            ...users[index],
+        usersData[index] = {
+            ...usersData[index],
             ...updates,
             updatedAt: new Date().toISOString()
         };
 
-        SafeStorage.set(USERS_KEY, users);
-        return users[index];
+        return usersData[index];
     },
 
     /**
      * حذف مستخدم
      */
     removeUser: (id: string): boolean => {
-        const users = OrganizationService.getUsers();
-        const filtered = users.filter(u => u.id !== id);
+        const filtered = usersData.filter(u => u.id !== id);
 
-        if (filtered.length === users.length) return false;
+        if (filtered.length === usersData.length) return false;
 
-        SafeStorage.set(USERS_KEY, filtered);
+        usersData = filtered;
         return true;
     },
 

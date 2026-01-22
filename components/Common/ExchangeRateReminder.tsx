@@ -7,9 +7,9 @@
 import React, { useState, useEffect } from 'react';
 import { AlertTriangle, X, RefreshCw, TrendingUp } from 'lucide-react';
 import { useCurrency } from '../../hooks/useCurrency';
-import { SafeStorage } from '../../utils/storage';
 
-const REMINDER_DISMISSED_KEY = 'alzhra_exchange_reminder_dismissed';
+// متغير في الذاكرة لحالة الإغلاق
+let reminderDismissedAt: string | null = null;
 
 const ExchangeRateReminder: React.FC = () => {
     const { checkExchangeRateAge, getCurrentRate, BASE_CURRENCY } = useCurrency();
@@ -25,14 +25,13 @@ const ExchangeRateReminder: React.FC = () => {
         setRateInfo(info);
 
         // التحقق من تاريخ آخر إغلاق للتنبيه
-        const lastDismissed = SafeStorage.get<string | null>(REMINDER_DISMISSED_KEY, null);
 
         if (info.isStale) {
-            if (!lastDismissed) {
+            if (!reminderDismissedAt) {
                 setIsVisible(true);
             } else {
                 // إظهار التنبيه مرة أخرى بعد يوم من الإغلاق
-                const dismissedDate = new Date(lastDismissed);
+                const dismissedDate = new Date(reminderDismissedAt);
                 const daysSinceDismissed = Math.floor(
                     (Date.now() - dismissedDate.getTime()) / (1000 * 60 * 60 * 24)
                 );
@@ -44,7 +43,7 @@ const ExchangeRateReminder: React.FC = () => {
     }, [checkExchangeRateAge]);
 
     const handleDismiss = () => {
-        SafeStorage.set(REMINDER_DISMISSED_KEY, new Date().toISOString());
+        reminderDismissedAt = new Date().toISOString();
         setIsVisible(false);
     };
 

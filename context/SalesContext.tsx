@@ -6,7 +6,7 @@ import { logger } from '../lib/logger';
 import { useApp } from './AppContext';
 import { useUser } from './app/UserContext';
 import { SalesService } from '../services/salesService';
-import { CustomerService } from '../services/customerService';
+import { customersService } from '../services/customersService';
 import { returnsService } from '../services/returnsService';
 
 // Intefaces from supabase-types might be different from '../types'. 
@@ -54,21 +54,34 @@ export const SalesProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const [loading, setLoading] = useState(false);
 
     const refreshData = useCallback(async () => {
-        if (!user?.companyId) return;
+        console.log('🔄 [SalesContext] refreshData called');
+        console.log('🔑 [SalesContext] user:', user);
+        console.log('🏢 [SalesContext] companyId:', user?.companyId);
+
+        if (!user?.companyId) {
+            console.warn('⚠️ [SalesContext] No companyId available - skipping data fetch!');
+            return;
+        }
 
         setLoading(true);
         try {
+            console.log('📡 [SalesContext] Fetching data from Supabase...');
             const [fetchedSales, fetchedCustomers, fetchedReturns] = await Promise.all([
                 SalesService.getSales(user.companyId),
-                CustomerService.getCustomers(user.companyId),
+                customersService.getAll(),
                 returnsService.getSalesReturns(user.companyId)
             ]);
+
+            console.log('✅ [SalesContext] Data fetched successfully:');
+            console.log('   - Sales:', fetchedSales?.length || 0);
+            console.log('   - Customers:', fetchedCustomers?.length || 0);
+            console.log('   - Returns:', fetchedReturns?.length || 0);
 
             setSales(fetchedSales);
             setCustomers(fetchedCustomers);
             setSalesReturns(fetchedReturns);
         } catch (error) {
-            console.error('Error fetching sales data:', error);
+            console.error('❌ [SalesContext] Error fetching sales data:', error);
             showNotification('فشل تحديث البيانات', 'error');
         } finally {
             setLoading(false);
@@ -141,15 +154,29 @@ export const SalesProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }, [user?.companyId, showNotification]);
 
     const addCustomer = useCallback(async (c: any) => {
-        if (!user?.companyId) return;
+        console.log('➕ [SalesContext] addCustomer called');
+        console.log('🏢 [SalesContext] companyId:', user?.companyId);
+        console.log('📦 [SalesContext] Customer data:', c);
+
+        if (!user?.companyId) {
+            console.error('❌ [SalesContext] No companyId - cannot add customer!');
+            showNotification('خطأ: لا يوجد معرف شركة', 'error');
+            return;
+        }
         try {
-            const added = await CustomerService.createCustomer(user.companyId, c);
+            console.log('📡 [SalesContext] Calling CustomerService.createCustomer...');
+            const added = await customersService.create(c);
+            console.log('📨 [SalesContext] Response from createCustomer:', added);
             if (added) {
                 setCustomers(prev => [...prev, added]);
                 showNotification('تم إضافة العميل بنجاح');
+                console.log('✅ [SalesContext] Customer added successfully!');
+            } else {
+                console.warn('⚠️ [SalesContext] createCustomer returned null/undefined');
+                showNotification('فشل إضافة العميل - لم يتم إرجاع بيانات', 'error');
             }
         } catch (error) {
-            console.error('Error adding customer:', error);
+            console.error('❌ [SalesContext] Error adding customer:', error);
             showNotification('فشل إضافة العميل', 'error');
         }
     }, [user?.companyId, showNotification]);
@@ -157,7 +184,7 @@ export const SalesProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const updateCustomer = useCallback(async (c: any) => {
         if (!user?.companyId) return;
         try {
-            const updated = await CustomerService.updateCustomer(c.id, c);
+            const updated = await customersService.update(c.id, c);
             if (updated) {
                 setCustomers(prev => prev.map(i => i.id === c.id ? updated : i));
                 showNotification('تم تحديث العميل بنجاح');
@@ -171,7 +198,7 @@ export const SalesProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const deleteCustomer = useCallback(async (id: string) => {
         if (!user?.companyId) return;
         try {
-            await CustomerService.deleteCustomer(id);
+            await customersService.delete(id);
             setCustomers(prev => prev.filter(i => i.id !== id));
             showNotification('تم حذف العميل');
         } catch (error) {

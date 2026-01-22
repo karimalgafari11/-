@@ -1,26 +1,27 @@
 /**
  * Suppliers Service - خدمة الموردين
- * CRUD operations للموردين مع Supabase
+ * Refactored for Schema V6 (partners table with is_supplier=true)
  */
 
 import { supabase } from '../lib/supabaseClient';
 import { Supplier } from '../types';
+import type { Partner, Insert, Update } from '../types/supabase-helpers';
 
-// تحويل بيانات Supabase لنوع Supplier
-const mapToSupplier = (data: any): Supplier => ({
+// Helper to map Partner to Supplier
+const mapToSupplier = (data: Partner): Supplier => ({
     id: data.id,
-    name: data.name, // Added
+    name: data.name,
     companyName: data.name,
     contactName: data.name,
     phone: data.phone || '',
     email: data.email || '',
     address: data.address || '',
-    category: data.category || 'عام',
-    balance: parseFloat(data.balance) || 0,
-    notes: data.notes,
+    category: 'عام', // Partner doesn't have category yet in V6 schema?
+    balance: data.current_balance || 0,
+    // notes: data.notes,
     isActive: data.is_active !== false,
-    status: data.is_active ? 'active' : 'inactive', // Added
-    taxNumber: data.tax_number || '', // Added
+    status: data.is_active ? 'active' : 'inactive',
+    taxNumber: data.tax_number || '',
     createdAt: data.created_at,
     updatedAt: data.updated_at
 });
@@ -32,9 +33,10 @@ export const suppliersService = {
     async getAll(companyId: string): Promise<Supplier[]> {
         try {
             const { data, error } = await supabase
-                .from('suppliers')
+                .from('partners')
                 .select('*')
                 .eq('company_id', companyId)
+                .eq('type', 'supplier')
                 .eq('is_active', true)
                 .order('name');
 
@@ -56,9 +58,10 @@ export const suppliersService = {
     async getById(id: string): Promise<Supplier | null> {
         try {
             const { data, error } = await supabase
-                .from('suppliers')
+                .from('partners')
                 .select('*')
                 .eq('id', id)
+                .eq('type', 'supplier')
                 .single();
 
             if (error || !data) return null;
@@ -74,34 +77,31 @@ export const suppliersService = {
      * إنشاء مورد جديد
      */
     async createSupplier(companyId: string, supplier: Omit<Supplier, 'id' | 'createdAt' | 'updatedAt'>): Promise<Supplier | null> {
-        console.log('🚀 SuppliersService.createSupplier called', { companyId, supplier });
         try {
-            const payload = {
+            const payload: Insert<'partners'> = {
                 company_id: companyId,
-                name: supplier.companyName || supplier.contactName,
+                name: supplier.companyName || supplier.contactName || 'New Supplier',
                 phone: supplier.phone,
                 email: supplier.email,
                 address: supplier.address,
-                category: supplier.category,
-                balance: supplier.balance || 0,
-                notes: supplier.notes,
+                type: 'supplier',
+                current_balance: supplier.balance || 0,
+                // notes: supplier.notes, // Removed as not in schema
+                tax_number: supplier.taxNumber,
                 is_active: supplier.isActive !== false
             };
-            console.log('📦 Payload sending to Supabase:', payload);
 
-            const { data, error } = await supabase
-                .from('suppliers')
+            const { data, error } = await (supabase as any)
+                .from('partners')
                 .insert(payload)
                 .select()
                 .single();
 
             if (error) {
                 console.error('❌ Supabase Error in createSupplier:', error);
-                console.error('Error details:', JSON.stringify(error, null, 2));
                 return null;
             }
 
-            console.log('✅ Supplier created successfully:', data);
             return mapToSupplier(data);
         } catch (error) {
             console.error('❌ Exception in createSupplier:', error);
@@ -114,18 +114,19 @@ export const suppliersService = {
      */
     async updateSupplier(id: string, updates: Partial<Supplier>): Promise<Supplier | null> {
         try {
-            const updateData: any = { updated_at: new Date().toISOString() };
+            const updateData: Update<'partners'> = { updated_at: new Date().toISOString() };
+
             if (updates.companyName !== undefined) updateData.name = updates.companyName;
             if (updates.phone !== undefined) updateData.phone = updates.phone;
             if (updates.email !== undefined) updateData.email = updates.email;
             if (updates.address !== undefined) updateData.address = updates.address;
-            if (updates.category !== undefined) updateData.category = updates.category;
-            if (updates.balance !== undefined) updateData.balance = updates.balance;
-            if (updates.notes !== undefined) updateData.notes = updates.notes;
+            if (updates.balance !== undefined) updateData.current_balance = updates.balance;
+            // if (updates.notes !== undefined) updateData.notes = updates.notes;
             if (updates.isActive !== undefined) updateData.is_active = updates.isActive;
+            if (updates.taxNumber !== undefined) updateData.tax_number = updates.taxNumber;
 
-            const { data, error } = await supabase
-                .from('suppliers')
+            const { data, error } = await (supabase as any)
+                .from('partners')
                 .update(updateData)
                 .eq('id', id)
                 .select()
@@ -148,16 +149,12 @@ export const suppliersService = {
      */
     async deleteSupplier(id: string): Promise<boolean> {
         try {
-            const { error } = await supabase
-                .from('suppliers')
-                .update({ is_active: false, updated_at: new Date().toISOString() })
+            const { error } = await (supabase as any)
+                .from('partners')
+                .update({ is_active: false, updated_at: new Date().toISOString() } as Update<'partners'>)
                 .eq('id', id);
 
-            if (error) {
-                console.error('Error deleting supplier:', error);
-                return false;
-            }
-
+            if (error) return false;
             return true;
         } catch (error) {
             console.error('Error in delete supplier:', error);
@@ -175,16 +172,12 @@ export const suppliersService = {
 
             const newBalance = supplier.balance + amount;
 
-            const { error } = await supabase
-                .from('suppliers')
-                .update({ balance: newBalance, updated_at: new Date().toISOString() })
+            const { error } = await (supabase as any)
+                .from('partners')
+                .update({ current_balance: newBalance, updated_at: new Date().toISOString() } as Update<'partners'>)
                 .eq('id', id);
 
-            if (error) {
-                console.error('Error updating balance:', error);
-                return false;
-            }
-
+            if (error) return false;
             return true;
         } catch (error) {
             console.error('Error in updateBalance:', error);
